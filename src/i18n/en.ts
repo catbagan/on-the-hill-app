@@ -3,6 +3,12 @@ const en = {
     ok: "OK!",
     cancel: "Cancel",
     back: "Back",
+    emailFieldLabel: "Email",
+    emailFieldPlaceholder: "Enter your email",
+    passwordFieldLabel: "Password",
+    passwordFieldPlaceholder: "Enter your password",
+    confirmPasswordFieldLabel: "Confirm Password",
+    confirmPasswordFieldPlaceholder: "Confirm your password",
   },
   welcomeScreen: {
     postscript:

@@ -1,82 +1,92 @@
 import { FC } from "react"
-import { Image, ImageStyle, TextStyle, View, ViewStyle } from "react-native"
+import { TextStyle, View, ViewStyle } from "react-native"
+import { router } from "expo-router"
 
+import { Button } from "@/components/Button"
 import { Screen } from "@/components/Screen"
 import { Text } from "@/components/Text"
-import { isRTL } from "@/i18n"
 import { useAppTheme } from "@/theme/context"
-import { $styles } from "@/theme/styles"
 import type { ThemedStyle } from "@/theme/types"
-import { useSafeAreaInsetsStyle } from "@/utils/useSafeAreaInsetsStyle"
-
-const welcomeLogo = require("@assets/images/logo.png")
-const welcomeFace = require("@assets/images/welcome-face.png")
 
 export const WelcomeScreen: FC = function WelcomeScreen() {
-  const { themed, theme } = useAppTheme()
+  const { themed } = useAppTheme()
 
-  const $bottomContainerInsets = useSafeAreaInsetsStyle(["bottom"])
+  const handleGetStarted = () => {
+    router.push("/(auth)/signup" as any)
+  }
+
+  const handleSignIn = () => {
+    router.push("/(auth)/signin" as any)
+  }
 
   return (
-    <Screen preset="fixed" contentContainerStyle={$styles.flex1}>
+    <Screen preset="fixed" contentContainerStyle={themed($contentContainer)}>
       <View style={themed($topContainer)}>
-        <Image style={themed($welcomeLogo)} source={welcomeLogo} resizeMode="contain" />
         <Text
           testID="welcome-heading"
           style={themed($welcomeHeading)}
-          tx="welcomeScreen:readyForLaunch"
-          preset="heading"
-        />
-        <Text tx="welcomeScreen:exciting" preset="subheading" />
-        <Image
-          style={$welcomeFace}
-          source={welcomeFace}
-          resizeMode="contain"
-          tintColor={theme.colors.palette.neutral900}
+          text="👋 Welcome to On The Hill"
         />
       </View>
 
-      <View style={themed([$bottomContainer, $bottomContainerInsets])}>
-        <Text tx="welcomeScreen:postscript" size="md" />
+      <View style={themed([$bottomContainer])}>
+        <Button
+          text="🎱 Get Started"
+          onPress={handleGetStarted}
+          style={themed($primaryButton)}
+          textStyle={themed($primaryButtonText)}
+        />
+        <Text
+          onPress={handleSignIn}
+          style={themed($secondaryText)}
+          text="🤗 I already have an account"
+        />
       </View>
     </Screen>
   )
 }
+const $contentContainer: ThemedStyle<ViewStyle> = () => ({
+  flex: 1,
+})
 
 const $topContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
-  flexShrink: 1,
-  flexGrow: 1,
-  flexBasis: "57%",
+  flex: 1,
   justifyContent: "center",
+  alignItems: "center",
   paddingHorizontal: spacing.lg,
+  paddingTop: spacing.xl,
 })
 
-const $bottomContainer: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
-  flexShrink: 1,
-  flexGrow: 0,
-  flexBasis: "43%",
-  backgroundColor: colors.palette.neutral100,
-  borderTopLeftRadius: 16,
-  borderTopRightRadius: 16,
+const $bottomContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
   paddingHorizontal: spacing.lg,
-  justifyContent: "space-around",
+  paddingBottom: spacing.xl,
+  alignItems: "center",
+  gap: spacing.md,
 })
-
-const $welcomeLogo: ThemedStyle<ImageStyle> = ({ spacing }) => ({
-  height: 88,
-  width: "100%",
-  marginBottom: spacing.xxl,
-})
-
-const $welcomeFace: ImageStyle = {
-  height: 169,
-  width: 269,
-  position: "absolute",
-  bottom: -47,
-  right: -80,
-  transform: [{ scaleX: isRTL ? -1 : 1 }],
-}
 
 const $welcomeHeading: ThemedStyle<TextStyle> = ({ spacing }) => ({
+  fontSize: 24,
+  lineHeight: 32,
+  fontWeight: "900",
+  textAlign: "center",
   marginBottom: spacing.md,
+})
+
+const $primaryButton: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
+  borderRadius: 24,
+  backgroundColor: colors.palette.primary100,
+  width: "100%",
+  paddingVertical: spacing.md,
+})
+
+const $primaryButtonText: ThemedStyle<TextStyle> = () => ({
+  fontSize: 18,
+  lineHeight: 24,
+  textAlignVertical: "center",
+})
+
+const $secondaryText: ThemedStyle<TextStyle> = ({ colors, spacing }) => ({
+  color: colors.palette.primary500,
+  fontSize: 16,
+  paddingVertical: spacing.sm,
 })
