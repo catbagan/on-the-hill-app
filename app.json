@@ -63,6 +63,10 @@
   "extra": {
     "ignite": {
       "version": "11.0.1"
+    },
+    "router": {},
+    "eas": {
+      "projectId": "1cbd11ff-afe4-4c1a-b893-d46b019f82ad"
     }
   }
 }
