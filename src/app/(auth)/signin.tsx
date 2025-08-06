@@ -3,6 +3,7 @@ import { TextStyle, View, ViewStyle, Alert } from "react-native"
 import { router } from "expo-router"
 
 import { Button } from "@/components/Button"
+import { Card } from "@/components/Card"
 import { Screen } from "@/components/Screen"
 import { Text } from "@/components/Text"
 import { TextField } from "@/components/TextField"
@@ -12,13 +13,13 @@ import type { ThemedStyle } from "@/theme/types"
 
 export default function SignInScreen() {
   const { themed } = useAppTheme()
-  const [username, setUsername] = useState("")
+  const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
 
   const handleSignIn = async () => {
-    if (!username.trim() || !password.trim()) {
-      Alert.alert("Error", "Please enter both username and password")
+    if (!email.trim() || !password.trim()) {
+      Alert.alert("Error", "Please enter both email and password")
       return
     }
 
@@ -26,7 +27,7 @@ export default function SignInScreen() {
 
     try {
       const result = await authApi.signIn({
-        username: username.trim(),
+        email: email.trim(),
         password: password.trim(),
       })
 
@@ -37,6 +38,7 @@ export default function SignInScreen() {
       }
 
       console.log("Sign in successful:", result)
+      console.log("User data from signin:", result.user)
       router.push("/(app)/stats" as any)
     } catch (error) {
       console.error("Sign in error:", error)
@@ -49,40 +51,61 @@ export default function SignInScreen() {
   return (
     <Screen preset="fixed" contentContainerStyle={themed($contentContainer)}>
       <View style={themed($topContainer)}>
-        <Text style={themed($title)} text="🔑 Sign In" />
+        <View style={themed($signInContainer)}>
+          <Card
+            style={themed($signInCard)}
+            ContentComponent={
+              <View style={themed($cardContent)}>
+                <Text style={themed($cardTitle)} text="🤗 Welcome Back!" />
+                <Text
+                  style={themed($cardSubtitle)}
+                  text="Sign in to access your pool statistics"
+                />
 
-        <TextField
-          value={username}
-          onChangeText={setUsername}
-          containerStyle={themed($inputContainer)}
-          autoCapitalize="none"
-          autoCorrect={false}
-          placeholder="Username"
-        />
+                <TextField
+                  value={email}
+                  onChangeText={setEmail}
+                  containerStyle={themed($inputContainer)}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="email-address"
+                  placeholder="Email address"
+                />
 
-        <TextField
-          value={password}
-          onChangeText={setPassword}
-          containerStyle={themed($inputContainer)}
-          autoCapitalize="none"
-          autoCorrect={false}
-          secureTextEntry
-          placeholder="Password"
-        />
+                <TextField
+                  value={password}
+                  onChangeText={setPassword}
+                  containerStyle={themed($inputContainer)}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  secureTextEntry
+                  placeholder="Password"
+                />
+
+                {isLoading ? (
+                  <View style={themed($statusContainer)}>
+                    <Text style={themed($loadingText)} text="🔐 Signing in..." />
+                  </View>
+                ) : (
+                  <Button
+                    text="Sign In"
+                    onPress={handleSignIn}
+                    style={themed($signInButton)}
+                    textStyle={themed($signInButtonText)}
+                    disabled={isLoading}
+                  />
+                )}
+              </View>
+            }
+          />
+        </View>
       </View>
 
       <View style={themed($bottomContainer)}>
-        <Button
-          text={isLoading ? "Signing in..." : "🎱 Let's go!"}
-          onPress={handleSignIn}
-          style={themed($primaryButton)}
-          textStyle={themed($primaryButtonText)}
-          disabled={isLoading}
-        />
         <Text
           onPress={() => router.push("/signup")}
           style={themed($secondaryText)}
-          text="🤗 I don't have an account yet"
+          text="🚀 I don't have an account yet"
         />
       </View>
     </Screen>
@@ -104,7 +127,6 @@ const $bottomContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
   paddingHorizontal: spacing.lg,
   paddingBottom: spacing.xl,
   alignItems: "center",
-  gap: spacing.md,
 })
 
 const $title: ThemedStyle<TextStyle> = ({ spacing }) => ({
@@ -115,19 +137,67 @@ const $title: ThemedStyle<TextStyle> = ({ spacing }) => ({
   marginBottom: spacing.xl,
 })
 
+const $signInContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
+  width: "100%",
+  maxWidth: 400,
+})
+
+const $signInCard: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
+  backgroundColor: colors.palette.neutral100,
+  borderRadius: 24,
+  padding: spacing.xl,
+  shadowColor: "#000000",
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.1,
+  shadowRadius: 8,
+  elevation: 4,
+})
+
+const $cardContent: ThemedStyle<ViewStyle> = ({ spacing }) => ({
+  alignItems: "center",
+  gap: spacing.md,
+})
+
+const $cardTitle: ThemedStyle<TextStyle> = ({ spacing }) => ({
+  fontSize: 20,
+  lineHeight: 28,
+  fontWeight: "700",
+  textAlign: "center",
+  marginBottom: spacing.xs,
+})
+
+const $cardSubtitle: ThemedStyle<TextStyle> = ({ colors, spacing }) => ({
+  fontSize: 14,
+  lineHeight: 20,
+  color: colors.palette.neutral600,
+  textAlign: "center",
+  marginBottom: spacing.lg,
+})
+
 const $inputContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
   marginBottom: spacing.md,
   width: "100%",
 })
 
-const $primaryButton: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
+const $statusContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
+  alignItems: "center",
+  paddingVertical: spacing.md,
+})
+
+const $loadingText: ThemedStyle<TextStyle> = ({ colors }) => ({
+  fontSize: 16,
+  color: colors.palette.neutral600,
+})
+
+const $signInButton: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
   borderRadius: 24,
   backgroundColor: colors.palette.primary100,
   width: "100%",
   paddingVertical: spacing.md,
+  marginTop: spacing.sm,
 })
 
-const $primaryButtonText: ThemedStyle<TextStyle> = () => ({
+const $signInButtonText: ThemedStyle<TextStyle> = () => ({
   fontSize: 18,
   lineHeight: 24,
   textAlignVertical: "center",

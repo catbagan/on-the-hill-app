@@ -17,7 +17,10 @@ const STORAGE_KEYS = {
 // Types
 export interface StoredUserData {
   id: string
-  username: string
+  email: string
+  givenName: string
+  familyName: string
+  profilePicture?: string
 }
 
 export interface AuthData {

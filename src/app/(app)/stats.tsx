@@ -113,20 +113,20 @@ export const StatsScreen: FC = function StatsScreen() {
 
   // Load persisted data on component mount
   useEffect(() => {
-    const loadPersistedData = () => {
-      const storedPlayers = getStoredPlayers()
-      const storedReportDates = getStoredPlayerReportDates()
-      const storedSelectedIndex = getStoredSelectedPlayerIndex()
+    const loadPersistedData = async () => {
+      try {
+        const storedPlayers = await getStoredPlayers()
+        const storedDates = await getStoredPlayerReportDates()
+        const storedIndex = await getStoredSelectedPlayerIndex()
 
-      if (storedPlayers.length > 0) {
-        setPlayers(storedPlayers)
-        setPlayerReportDates(storedReportDates)
-        setSelectedPlayerIndex(
-          storedSelectedIndex >= 0 && storedSelectedIndex < storedPlayers.length
-            ? storedSelectedIndex
-            : 0,
-        )
-        setShowInputForm(false)
+        if (storedPlayers && storedPlayers.length > 0) {
+          setPlayers(storedPlayers)
+          setPlayerReportDates(storedDates || {})
+          setSelectedPlayerIndex(storedIndex || 0)
+          setShowInputForm(false)
+        }
+      } catch (error) {
+        console.error("Error loading persisted data:", error)
       }
     }
 
@@ -188,7 +188,7 @@ export const StatsScreen: FC = function StatsScreen() {
   const handleAddPlayer = () => {
     setPlayerName("")
     setError("")
-    setShowInputForm(true) // Show input form
+    setShowInputForm(true)
     setPlayerSearchResult(null)
     setShowConfirmation(false)
     setShowEditView(false)
@@ -198,27 +198,22 @@ export const StatsScreen: FC = function StatsScreen() {
     setShowEditView(true)
     setShowInputForm(false)
     setShowConfirmation(false)
-    // Reset loading state when entering edit view
-    setIsLoading(false)
   }
 
   const handleRefreshPlayer = async (playerName: string) => {
     console.log("🔄 Refresh button pressed for player:", playerName)
 
-    // Find the player in the list
     const playerIndex = players.findIndex((p) => p.name === playerName)
     if (playerIndex === -1) {
       console.log("❌ Player not found in list:", playerName)
       return
     }
 
-    console.log("✅ Player found at index:", playerIndex)
     setIsLoading(true)
 
     try {
       console.log("🔍 Searching for player:", playerName)
 
-      // Search for the player to get their member number
       const searchResult = await playerApi.search({ name: playerName })
       console.log("🔍 Search result:", searchResult)
 
@@ -231,7 +226,6 @@ export const StatsScreen: FC = function StatsScreen() {
       console.log("✅ Player found, member number:", searchResult.player.memberNumber)
       console.log("📊 Getting fresh report data...")
 
-      // Get fresh report data
       const reportResult = await reportApi.get({ memberId: searchResult.player.memberNumber })
       console.log("📊 Report result:", reportResult)
 
@@ -243,7 +237,6 @@ export const StatsScreen: FC = function StatsScreen() {
 
       console.log("✅ Report data received, updating player stats...")
 
-      // Convert report data to PlayerStats format with null checks
       const updatedPlayerStats: PlayerStats = {
         name: playerName,
         overall: {
@@ -262,12 +255,10 @@ export const StatsScreen: FC = function StatsScreen() {
         bySkillDifference: reportResult.report.bySkillDifference || {},
       }
 
-      // Update the player in the list
       const updatedPlayers = [...players]
       updatedPlayers[playerIndex] = updatedPlayerStats
       setPlayers(updatedPlayers)
 
-      // Update the report date
       const currentDate = new Date().toLocaleDateString()
       setPlayerReportDates((prev) => ({
         ...prev,
@@ -331,7 +322,6 @@ export const StatsScreen: FC = function StatsScreen() {
         return
       }
 
-      // Convert report data to PlayerStats format with null checks
       const playerStats: PlayerStats = {
         name: `${playerSearchResult.player.firstName} ${playerSearchResult.player.lastName}`,
         overall: {
@@ -354,7 +344,6 @@ export const StatsScreen: FC = function StatsScreen() {
       setPlayers(newPlayers)
       setSelectedPlayerIndex(newPlayers.length - 1)
 
-      // Set the report date for the new player
       const currentDate = new Date().toLocaleDateString()
       setPlayerReportDates((prev) => ({
         ...prev,
@@ -385,36 +374,12 @@ export const StatsScreen: FC = function StatsScreen() {
     setGameType(type)
   }
 
-  const getSortLabel = (sort: typeof headToHeadSort) => {
-    switch (sort) {
-      case "name-asc":
-        return "Name A-Z"
-      case "name-desc":
-        return "Name Z-A"
-      case "matches-asc":
-        return "Matches ↑"
-      case "matches-desc":
-        return "Matches ↓"
-      case "winrate-asc":
-        return "Win % ↑"
-      case "winrate-desc":
-        return "Win % ↓"
-      default:
-        return "Name A-Z"
-    }
-  }
+
 
   // View 1: Player Name Input (when no players exist or adding new player)
   if (players.length === 0 || showInputForm) {
     // Show confirmation card if we have search results
     if (showConfirmation && playerSearchResult) {
-      console.log("Showing confirmation card with:", {
-        showConfirmation,
-        playerSearchResult,
-        hasPlayer: !!playerSearchResult.player,
-        hasTeams: !!playerSearchResult.teams,
-        teamsLength: playerSearchResult.teams?.length,
-      })
       return (
         <Screen preset="fixed" contentContainerStyle={themed($contentContainer)}>
           <View style={themed($topContainer)}>
@@ -468,151 +433,150 @@ export const StatsScreen: FC = function StatsScreen() {
                 </View>
               }
             />
-          </View>
 
-          <View style={themed($bottomContainer)}>
-            <Button
-              text={isLoading ? "Getting stats..." : "✅ Yes, get stats!"}
-              onPress={handleConfirmPlayer}
-              style={themed($primaryButton)}
-              textStyle={themed($primaryButtonText)}
-              disabled={isLoading}
-            />
-            <Button
-              text="❌ No, search again"
-              onPress={() => {
-                setShowConfirmation(false)
-                setPlayerSearchResult(null)
-              }}
-              style={themed($secondaryButton)}
-              textStyle={themed($secondaryButtonText)}
-              disabled={isLoading}
-            />
+            <View style={themed($buttonContainer)}>
+              <Button
+                text="Yes, Add Player"
+                onPress={handleConfirmPlayer}
+                style={themed($primaryButton)}
+                textStyle={themed($primaryButtonText)}
+                disabled={isLoading}
+              />
+              <Button
+                text="No, Search Again"
+                onPress={handleAddPlayer}
+                style={themed($secondaryButton)}
+                textStyle={themed($secondaryButtonText)}
+                disabled={isLoading}
+              />
+            </View>
           </View>
         </Screen>
       )
     }
+
+    // Show search form
     return (
       <Screen preset="fixed" contentContainerStyle={themed($contentContainer)}>
-        <View style={themed($headerContainer)}>
-          <View style={themed($searchHeaderRow)}>
-            <TouchableOpacity onPress={() => setShowInputForm(false)} style={themed($backButton)}>
-              <Ionicons name="arrow-back" size={24} color="#000000" />
-            </TouchableOpacity>
-            <View style={themed($backButton)} />
-          </View>
-        </View>
+        <View style={themed($topContainer)}>
+          <Text style={themed($title)} text="📊 Pool Statistics" />
 
-        <View style={themed($searchContainer)}>
-          <View style={themed($searchCard)}>
-            <Text style={themed($searchTitle)} text="Find Player Stats" />
-            <Text
-              style={themed($searchSubtitle)}
-              text="Search by player name to get their pool statistics"
-            />
-
-            <TextField
-              value={playerName}
-              onChangeText={(text) => {
-                setPlayerName(text)
-                if (error) setError("")
-              }}
-              containerStyle={themed($searchInputContainer)}
-              autoCapitalize="words"
-              autoCorrect={false}
-              placeholder="Enter player name..."
-            />
-
-            {isLoading ? (
-              <View style={themed($statusContainer)}>
-                <Text style={themed($loadingText)} text="🔍 Searching for player..." />
-              </View>
-            ) : error ? (
-              <View style={themed($statusContainer)}>
-                <Text style={themed($errorText)} text={`❌ ${error}`} />
-              </View>
-            ) : (
-              <Button
-                text="🔍 Search Player"
-                onPress={handleSubmitPlayer}
-                style={themed($searchButton)}
-                textStyle={themed($searchButtonText)}
-                disabled={isLoading}
+          <View style={themed($searchContainer)}>
+            <View style={themed($searchCard)}>
+              <Text style={themed($searchTitle)} text="Find Player Stats" />
+              <Text
+                style={themed($searchSubtitle)}
+                text="Search by player name to get their pool statistics"
               />
-            )}
+
+              <TextField
+                value={playerName}
+                onChangeText={(text) => {
+                  setPlayerName(text)
+                  if (error) setError("")
+                }}
+                containerStyle={themed($searchInputContainer)}
+                autoCapitalize="words"
+                autoCorrect={false}
+                placeholder="Enter player name..."
+              />
+
+              {isLoading ? (
+                <View style={themed($statusContainer)}>
+                  <Text style={themed($loadingText)} text="Gathering your pool statistics..." />
+                </View>
+              ) : error ? (
+                <View style={themed($statusContainer)}>
+                  <Text style={themed($errorText)} text={`❌ ${error}`} />
+                </View>
+              ) : (
+                <Button
+                  text="🔍 Search Player"
+                  onPress={handleSubmitPlayer}
+                  style={themed($searchButton)}
+                  textStyle={themed($searchButtonText)}
+                  disabled={isLoading}
+                />
+              )}
+            </View>
           </View>
         </View>
       </Screen>
     )
   }
 
-  // View 2: Edit Players View
+  // View 2: Player Management (when editing players)
   if (showEditView) {
-    console.log("Edit view is showing, players count:", players.length)
-    console.log("Players:", players)
-    console.log("Player report dates:", playerReportDates)
-
     return (
-      <Screen preset="fixed" contentContainerStyle={themed($contentContainer)}>
-        <View style={themed($headerContainer)}>
-          <Text style={themed($title)} text="✏️ Manage Players" />
-        </View>
+      <Screen preset="scroll" contentContainerStyle={themed($contentContainer)}>
+        <View style={themed($topContainer)}>
+          <View style={themed($headerContainer)}>
+            <TouchableOpacity onPress={() => setShowEditView(false)} style={themed($backButton)}>
+              <Ionicons name="arrow-back" size={24} color="#000" />
+            </TouchableOpacity>
+            <Text style={themed($title)} text="Manage Players" />
+          </View>
 
-        <View style={themed($statsContainer)}>
-          {isLoading && <Text style={themed($loadingText)} text="Refreshing player data..." />}
-          <ScrollView showsVerticalScrollIndicator={false}>
-            {players.length > 0 ? (
-              players.map((player) => (
-                <View key={player.name} style={themed($playerManagementRow)}>
-                  <View style={themed($playerInfo)}>
-                    <Text style={themed($playerName)} text={player.name} />
+          <View style={themed($statsContainer)}>
+            {players.map((player) => (
+              <View key={player.name} style={themed($playerManagementRow)}>
+                <View style={themed($playerInfo)}>
+                  <Text style={themed($playerName)} text={player.name} />
+                  {playerReportDates[player.name] && (
                     <Text
                       style={themed($reportDate)}
-                      text={`Report: ${playerReportDates[player.name] || "Not available"}`}
+                      text={`Last updated: ${playerReportDates[player.name]}`}
                     />
-                  </View>
-                  <View style={themed($playerActions)}>
-                    <Button
-                      text={isLoading ? "Loading..." : "Refresh"}
-                      onPress={() => {
-                        console.log("🔄 Refresh button tapped for:", player.name)
-                        console.log("isLoading state:", isLoading)
-                        handleRefreshPlayer(player.name)
-                      }}
-                      style={themed($actionButton)}
-                      textStyle={themed($actionButtonText)}
-                      disabled={isLoading}
-                    />
-                    <Button
-                      text="Delete"
-                      onPress={() => handleDeletePlayer(player.name)}
-                      style={themed($deleteButton)}
-                      textStyle={themed($actionButtonText)}
-                      disabled={isLoading}
-                    />
-                  </View>
+                  )}
                 </View>
-              ))
-            ) : (
-              <Text style={themed($emptyStateText)} text="No players added yet" />
-            )}
-          </ScrollView>
-        </View>
+                <View style={themed($playerActions)}>
+                  <TouchableOpacity
+                    onPress={() => handleRefreshPlayer(player.name)}
+                    style={themed($actionButton)}
+                    disabled={isLoading}
+                  >
+                    <MaterialCommunityIcons name="refresh" size={20} color="#007AFF" />
+                    <Text style={themed($actionButtonText)} text="Refresh" />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => handleDeletePlayer(player.name)}
+                    style={themed($deleteButton)}
+                  >
+                    <MaterialCommunityIcons name="delete" size={20} color="#FF3B30" />
+                    <Text style={themed($actionButtonText)} text="Delete" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))}
 
-        <View style={themed($bottomContainer)}>
-          <Button
-            text="← Back to Stats"
-            onPress={() => setShowEditView(false)}
-            style={themed($primaryButton)}
-            textStyle={themed($primaryButtonText)}
+            <Button
+              text="Add New Player"
+              onPress={handleAddPlayer}
+              style={themed($addPlayerButton)}
+              textStyle={themed($addPlayerButtonText)}
+            />
+          </View>
+        </View>
+      </Screen>
+    )
+  }
+
+  // View 3: Main Stats Display
+  const selectedPlayer = players[selectedPlayerIndex]
+
+  if (!selectedPlayer) {
+    return (
+      <Screen preset="fixed" contentContainerStyle={themed($contentContainer)}>
+        <View style={themed($topContainer)}>
+          <Text style={themed($title)} text="📊 Pool Statistics" />
+          <Text
+            style={themed($emptyStateText)}
+            text="No players found. Please add a player to view statistics."
           />
         </View>
       </Screen>
     )
   }
-
-  // View 3: Stats Display
-  const selectedPlayer = players[selectedPlayerIndex]
 
   return (
     <Screen preset="fixed" contentContainerStyle={themed($contentContainer)}>
@@ -633,7 +597,6 @@ export const StatsScreen: FC = function StatsScreen() {
               contentContainerStyle={themed($playerTabsScrollContainer)}
             >
               {players.map((player, index) => {
-                // Create shortened name for tab display
                 const nameParts = player.name.split(" ")
                 const shortName =
                   nameParts.length > 1 ? `${nameParts[0]} ${nameParts[1].charAt(0)}` : player.name
@@ -696,16 +659,16 @@ export const StatsScreen: FC = function StatsScreen() {
         </View>
       </View>
 
-      <View style={themed($statsContainer)}>
-        {activeTab === "overall" && (
-          <ScrollView showsVerticalScrollIndicator={false}>
-            <Card
-              style={themed($statCard)}
-              heading="Overall Record"
-              ContentComponent={
-                <View style={themed($cardContent)}>
+      <View style={themed($contentContainer)}>
+        <View style={themed($statsContainer)}>
+          {activeTab === "overall" && (
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {/* Overall Stats */}
+              <Card
+                style={themed($statCard)}
+                ContentComponent={
                   <View style={themed($overallRow)}>
-                    <Text style={themed($statLabel)} text="Overall" />
+                    <Text weight="bold" text="Overall Record" />
                     <View style={themed($statValues)}>
                       <Text style={themed($winText)} text={`${selectedPlayer.overall.wins}W`} />
                       <Text style={themed($lossText)} text={`${selectedPlayer.overall.losses}L`} />
@@ -715,18 +678,19 @@ export const StatsScreen: FC = function StatsScreen() {
                       />
                     </View>
                   </View>
-                </View>
-              }
-            />
+                }
+              />
 
-            <Card
-              style={themed($statCard)}
-              heading="By Session"
-              ContentComponent={
-                <View style={themed($cardContent)}>
-                  {Object.entries(selectedPlayer.bySeason).map(([season, stats]) => (
-                    <View key={season} style={themed($statRow)}>
-                      <Text style={themed($statLabel)} text={season} />
+              {/* By Location */}
+              {Object.keys(selectedPlayer.byLocation).length > 0 && (
+                <SortableCard
+                  heading="By Location"
+                  data={selectedPlayer.byLocation}
+                  sortState={locationSort}
+                  onSortChange={setLocationSort}
+                  renderItem={([location, stats]) => (
+                    <View key={location} style={themed($statRow)}>
+                      <Text style={themed($statLabel)} text={location} />
                       <View style={themed($statValues)}>
                         <Text style={themed($winText)} text={`${stats.wins}W`} />
                         <Text style={themed($lossText)} text={`${stats.losses}L`} />
@@ -736,67 +700,95 @@ export const StatsScreen: FC = function StatsScreen() {
                         />
                       </View>
                     </View>
-                  ))}
-                </View>
-              }
-            />
+                  )}
+                  sortOptions={[
+                    { value: "name-asc", label: "Name A-Z" },
+                    { value: "name-desc", label: "Name Z-A" },
+                    { value: "winrate-asc", label: "Win % ↑" },
+                    { value: "winrate-desc", label: "Win % ↓" },
+                  ]}
+                  sortFunction={(a, b, sortType) => {
+                    const [nameA, statsA] = a
+                    const [nameB, statsB] = b
+                    const winRateA = statsA.wins / (statsA.wins + statsA.losses)
+                    const winRateB = statsB.wins / (statsB.wins + statsB.losses)
 
-            <SortableCard
-              heading="By Location"
-              data={selectedPlayer.byLocation}
-              sortState={locationSort}
-              onSortChange={setLocationSort}
-              renderItem={([location, stats]) => (
-                <View key={location} style={themed($statRow)}>
-                  <Text style={themed($statLabel)} text={location} />
-                  <View style={themed($statValues)}>
-                    <Text style={themed($winText)} text={`${stats.wins}W`} />
-                    <Text style={themed($lossText)} text={`${stats.losses}L`} />
-                    <Text
-                      style={themed($winPercentText)}
-                      text={`(${Math.round((stats.wins / (stats.wins + stats.losses)) * 100)}%)`}
-                    />
-                  </View>
-                </View>
+                    switch (sortType) {
+                      case "name-asc":
+                        return nameA.localeCompare(nameB)
+                      case "name-desc":
+                        return nameB.localeCompare(nameA)
+                      case "winrate-asc":
+                        return winRateA - winRateB
+                      case "winrate-desc":
+                        return winRateB - winRateA
+                      default:
+                        return nameA.localeCompare(nameB)
+                    }
+                  }}
+                />
               )}
-              sortOptions={[
-                { value: "name-asc", label: "Name A-Z" },
-                { value: "name-desc", label: "Name Z-A" },
-                { value: "winrate-asc", label: "Win % ↑" },
-                { value: "winrate-desc", label: "Win % ↓" },
-              ]}
-              sortFunction={(a, b, sortType) => {
-                const [aName, aStats] = a
-                const [bName, bStats] = b
-                const aWinRate = aStats.wins / (aStats.wins + aStats.losses)
-                const bWinRate = bStats.wins / (bStats.wins + bStats.losses)
 
-                switch (sortType) {
-                  case "name-asc":
-                    return aName.localeCompare(bName)
-                  case "name-desc":
-                    return bName.localeCompare(aName)
-                  case "winrate-asc":
-                    return aWinRate - bWinRate
-                  case "winrate-desc":
-                    return bWinRate - aWinRate
-                  default:
-                    return 0
-                }
-              }}
-            />
+              {/* By Position */}
+              {Object.keys(selectedPlayer.byPosition).length > 0 && (
+                <SortableCard
+                  heading="By Position"
+                  data={selectedPlayer.byPosition}
+                  sortState={positionSort}
+                  onSortChange={setPositionSort}
+                  renderItem={([position, stats]) => (
+                    <View key={position} style={themed($statRow)}>
+                      <Text style={themed($statLabel)} text={position} />
+                      <View style={themed($statValues)}>
+                        <Text style={themed($winText)} text={`${stats.wins}W`} />
+                        <Text style={themed($lossText)} text={`${stats.losses}L`} />
+                        <Text
+                          style={themed($winPercentText)}
+                          text={`(${Math.round((stats.wins / (stats.wins + stats.losses)) * 100)}%)`}
+                        />
+                      </View>
+                    </View>
+                  )}
+                  sortOptions={[
+                    { value: "position-asc", label: "Position ↑" },
+                    { value: "position-desc", label: "Position ↓" },
+                    { value: "winrate-asc", label: "Win % ↑" },
+                    { value: "winrate-desc", label: "Win % ↓" },
+                  ]}
+                  sortFunction={(a, b, sortType) => {
+                    const [positionA, statsA] = a
+                    const [positionB, statsB] = b
+                    const winRateA = statsA.wins / (statsA.wins + statsA.losses)
+                    const winRateB = statsB.wins / (statsB.wins + statsB.losses)
 
-            <SortableCard
-              heading="By Position"
-              data={selectedPlayer.byPosition}
-              sortState={positionSort}
-              onSortChange={setPositionSort}
-              renderItem={([position, stats]) => {
-                const positionNames = ["First", "Second", "Third", "Fourth", "Fifth"]
-                const positionName = positionNames[parseInt(position) - 1] || position
-                return (
-                  <View key={position} style={themed($statRow)}>
-                    <Text style={themed($statLabel)} text={positionName} />
+                    switch (sortType) {
+                      case "position-asc":
+                        return positionA.localeCompare(positionB)
+                      case "position-desc":
+                        return positionB.localeCompare(positionA)
+                      case "winrate-asc":
+                        return winRateA - winRateB
+                      case "winrate-desc":
+                        return winRateB - winRateA
+                      default:
+                        return positionA.localeCompare(positionB)
+                    }
+                  }}
+                />
+              )}
+            </ScrollView>
+          )}
+
+          {activeTab === "headToHead" && (
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <SortableCard
+                heading="Head to Head"
+                data={selectedPlayer.headToHead}
+                sortState={headToHeadSort}
+                onSortChange={setHeadToHeadSort}
+                renderItem={([opponent, stats]) => (
+                  <View key={opponent} style={themed($statRow)}>
+                    <Text style={themed($statLabel)} text={opponent} />
                     <View style={themed($statValues)}>
                       <Text style={themed($winText)} text={`${stats.wins}W`} />
                       <Text style={themed($lossText)} text={`${stats.losses}L`} />
@@ -806,327 +798,189 @@ export const StatsScreen: FC = function StatsScreen() {
                       />
                     </View>
                   </View>
-                )
-              }}
-              sortOptions={[
-                { value: "position-asc", label: "Position ↑" },
-                { value: "position-desc", label: "Position ↓" },
-                { value: "winrate-asc", label: "Win % ↑" },
-                { value: "winrate-desc", label: "Win % ↓" },
-              ]}
-              sortFunction={(a, b, sortType) => {
-                const [aPos, aStats] = a
-                const [bPos, bStats] = b
-                const aWinRate = aStats.wins / (aStats.wins + aStats.losses)
-                const bWinRate = bStats.wins / (bStats.wins + bStats.losses)
+                )}
+                sortOptions={[
+                  { value: "name-asc", label: "Name A-Z" },
+                  { value: "name-desc", label: "Name Z-A" },
+                  { value: "matches-asc", label: "Matches ↑" },
+                  { value: "matches-desc", label: "Matches ↓" },
+                  { value: "winrate-asc", label: "Win % ↑" },
+                  { value: "winrate-desc", label: "Win % ↓" },
+                ]}
+                sortFunction={(a, b, sortType) => {
+                  const [nameA, statsA] = a
+                  const [nameB, statsB] = b
+                  const totalMatchesA = statsA.wins + statsA.losses
+                  const totalMatchesB = statsB.wins + statsB.losses
+                  const winRateA = statsA.wins / totalMatchesA
+                  const winRateB = statsB.wins / totalMatchesB
 
-                switch (sortType) {
-                  case "position-asc":
-                    return parseInt(aPos) - parseInt(bPos)
-                  case "position-desc":
-                    return parseInt(bPos) - parseInt(aPos)
-                  case "winrate-asc":
-                    return aWinRate - bWinRate
-                  case "winrate-desc":
-                    return bWinRate - aWinRate
-                  default:
-                    return 0
-                }
-              }}
-            />
+                  switch (sortType) {
+                    case "name-asc":
+                      return nameA.localeCompare(nameB)
+                    case "name-desc":
+                      return nameB.localeCompare(nameA)
+                    case "matches-asc":
+                      return totalMatchesA - totalMatchesB
+                    case "matches-desc":
+                      return totalMatchesB - totalMatchesA
+                    case "winrate-asc":
+                      return winRateA - winRateB
+                    case "winrate-desc":
+                      return winRateB - winRateA
+                    default:
+                      return nameA.localeCompare(nameB)
+                  }
+                }}
+              />
+            </ScrollView>
+          )}
 
-            <Card
-              style={themed($statCard)}
-              heading="Score Distribution"
-              ContentComponent={
-                <View style={themed($cardContent)}>
-                  {Object.entries(selectedPlayer.scoreDistribution)
-                    .sort(([a], [b]) => {
-                      const aScore = a.split("-").map(Number)
-                      const bScore = b.split("-").map(Number)
-                      // Sort by wins first (descending), then by losses (ascending)
-                      if (aScore[0] !== bScore[0]) return bScore[0] - aScore[0]
-                      return aScore[1] - bScore[1]
-                    })
-                    .map(([score, count]) => {
-                      const [wins, losses] = score.split("-").map(Number)
-                      const isWinningScore = wins > losses
-                      const totalForCategory = isWinningScore
-                        ? selectedPlayer.overall.wins
-                        : selectedPlayer.overall.losses
-                      const percentage = Math.round((count / totalForCategory) * 100)
-                      const categoryLabel = isWinningScore ? "wins" : "losses"
-                      return (
-                        <View key={score} style={themed($statRow)}>
-                          <Text style={themed($statLabel)} text={score} />
-                          <View style={themed($statValues)}>
-                            <Text
-                              style={themed($winPercentText)}
-                              text={`${count} matches (${percentage}% of ${categoryLabel})`}
-                            />
-                          </View>
-                        </View>
-                      )
-                    })}
-                </View>
-              }
-            />
-
-            <Card
-              style={themed($statCard)}
-              heading="By Innings"
-              ContentComponent={
-                <View style={themed($cardContent)}>
-                  {Object.entries(selectedPlayer.byInnings)
-                    .sort(([a], [b]) => {
-                      const aRange = a.split("-")[0]
-                      const bRange = b.split("-")[0]
-                      return parseInt(aRange) - parseInt(bRange)
-                    })
-                    .map(([innings, stats]) => (
-                      <View key={innings} style={themed($statRow)}>
-                        <Text style={themed($statLabel)} text={innings} />
-                        <View style={themed($statValues)}>
-                          <Text style={themed($winText)} text={`${stats.wins}W`} />
-                          <Text style={themed($lossText)} text={`${stats.losses}L`} />
-                          <Text
-                            style={themed($winPercentText)}
-                            text={`(${Math.round((stats.wins / (stats.wins + stats.losses)) * 100)}%)`}
-                          />
-                        </View>
-                      </View>
-                    ))}
-                </View>
-              }
-            />
-
-            <Card
-              style={themed($statCard)}
-              heading="By Team Situation"
-              ContentComponent={
-                <View style={themed($cardContent)}>
-                  {Object.entries(selectedPlayer.byTeamSituation).map(([situation, stats]) => {
-                    const situationNames: { [key: string]: string } = {
-                      team_winning: "Team Winning",
-                      team_losing: "Team Losing",
-                      team_tied: "Team Tied",
-                    }
-                    const situationName = situationNames[situation] || situation
-                    return (
-                      <View key={situation} style={themed($statRow)}>
-                        <Text style={themed($statLabel)} text={situationName} />
-                        <View style={themed($statValues)}>
-                          <Text style={themed($winText)} text={`${stats.wins}W`} />
-                          <Text style={themed($lossText)} text={`${stats.losses}L`} />
-                          <Text
-                            style={themed($winPercentText)}
-                            text={`(${Math.round((stats.wins / (stats.wins + stats.losses)) * 100)}%)`}
-                          />
-                        </View>
-                      </View>
-                    )
-                  })}
-                </View>
-              }
-            />
-          </ScrollView>
-        )}
-
-        {activeTab === "headToHead" && (
-          <ScrollView showsVerticalScrollIndicator={false}>
-            <SortableCard
-              heading="Head to Head"
-              data={selectedPlayer.headToHead}
-              sortState={headToHeadSort}
-              onSortChange={setHeadToHeadSort}
-              renderItem={([playerName, stats]) => (
-                <View key={playerName} style={themed($statRow)}>
-                  <Text style={themed($statLabel)} text={playerName} />
-                  <View style={themed($statValues)}>
-                    <Text style={themed($winText)} text={`${stats.wins}W`} />
-                    <Text style={themed($lossText)} text={`${stats.losses}L`} />
-                    <Text
-                      style={themed($winPercentText)}
-                      text={`(${Math.round((stats.wins / (stats.wins + stats.losses)) * 100)}%)`}
-                    />
+          {activeTab === "skill" && (
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <SortableCard
+                heading="By My Skill"
+                data={selectedPlayer.byMySkill}
+                sortState={mySkillSort}
+                onSortChange={setMySkillSort}
+                renderItem={([skill, stats]) => (
+                  <View key={skill} style={themed($statRow)}>
+                    <Text style={themed($statLabel)} text={`Skill ${skill}`} />
+                    <View style={themed($statValues)}>
+                      <Text style={themed($winText)} text={`${stats.wins}W`} />
+                      <Text style={themed($lossText)} text={`${stats.losses}L`} />
+                      <Text
+                        style={themed($winPercentText)}
+                        text={`(${Math.round((stats.wins / (stats.wins + stats.losses)) * 100)}%)`}
+                      />
+                    </View>
                   </View>
-                </View>
-              )}
-              sortOptions={[
-                { value: "name-asc", label: "Name A-Z" },
-                { value: "name-desc", label: "Name Z-A" },
-                { value: "matches-asc", label: "Matches ↑" },
-                { value: "matches-desc", label: "Matches ↓" },
-                { value: "winrate-asc", label: "Win % ↑" },
-                { value: "winrate-desc", label: "Win % ↓" },
-              ]}
-              sortFunction={(a, b, sortType) => {
-                const [aName, aStats] = a
-                const [bName, bStats] = b
-                const aTotal = aStats.wins + aStats.losses
-                const bTotal = bStats.wins + bStats.losses
-                const aWinRate = aStats.wins / aTotal
-                const bWinRate = bStats.wins / bTotal
+                )}
+                sortOptions={[
+                  { value: "skill-asc", label: "Skill ↑" },
+                  { value: "skill-desc", label: "Skill ↓" },
+                  { value: "winrate-asc", label: "Win % ↑" },
+                  { value: "winrate-desc", label: "Win % ↓" },
+                ]}
+                sortFunction={(a, b, sortType) => {
+                  const [skillA, statsA] = a
+                  const [skillB, statsB] = b
+                  const skillLevelA = parseInt(skillA)
+                  const skillLevelB = parseInt(skillB)
+                  const winRateA = statsA.wins / (statsA.wins + statsA.losses)
+                  const winRateB = statsB.wins / (statsB.wins + statsB.losses)
 
-                switch (sortType) {
-                  case "name-asc":
-                    return aName.localeCompare(bName)
-                  case "name-desc":
-                    return bName.localeCompare(aName)
-                  case "matches-asc":
-                    return aTotal - bTotal
-                  case "matches-desc":
-                    return bTotal - aTotal
-                  case "winrate-asc":
-                    return aWinRate - bWinRate
-                  case "winrate-desc":
-                    return bWinRate - aWinRate
-                  default:
-                    return 0
-                }
-              }}
-            />
-          </ScrollView>
-        )}
+                  switch (sortType) {
+                    case "skill-asc":
+                      return skillLevelA - skillLevelB
+                    case "skill-desc":
+                      return skillLevelB - skillLevelA
+                    case "winrate-asc":
+                      return winRateA - winRateB
+                    case "winrate-desc":
+                      return winRateB - winRateA
+                    default:
+                      return skillLevelA - skillLevelB
+                  }
+                }}
+              />
 
-        {activeTab === "skill" && (
-          <ScrollView showsVerticalScrollIndicator={false}>
-            <SortableCard
-              heading="By My Skill"
-              data={selectedPlayer.byMySkill}
-              sortState={mySkillSort}
-              onSortChange={setMySkillSort}
-              renderItem={([skill, stats]) => (
-                <View key={skill} style={themed($statRow)}>
-                  <Text style={themed($statLabel)} text={`Skill ${skill}`} />
-                  <View style={themed($statValues)}>
-                    <Text style={themed($winText)} text={`${stats.wins}W`} />
-                    <Text style={themed($lossText)} text={`${stats.losses}L`} />
-                    <Text
-                      style={themed($winPercentText)}
-                      text={`(${Math.round((stats.wins / (stats.wins + stats.losses)) * 100)}%)`}
-                    />
+              <SortableCard
+                heading="By Opponent Skill"
+                data={selectedPlayer.byOpponentSkill}
+                sortState={oppSkillSort}
+                onSortChange={setOppSkillSort}
+                renderItem={([skill, stats]) => (
+                  <View key={skill} style={themed($statRow)}>
+                    <Text style={themed($statLabel)} text={`Skill ${skill}`} />
+                    <View style={themed($statValues)}>
+                      <Text style={themed($winText)} text={`${stats.wins}W`} />
+                      <Text style={themed($lossText)} text={`${stats.losses}L`} />
+                      <Text
+                        style={themed($winPercentText)}
+                        text={`(${Math.round((stats.wins / (stats.wins + stats.losses)) * 100)}%)`}
+                      />
+                    </View>
                   </View>
-                </View>
-              )}
-              sortOptions={[
-                { value: "skill-asc", label: "Skill ↑" },
-                { value: "skill-desc", label: "Skill ↓" },
-                { value: "winrate-asc", label: "Win % ↑" },
-                { value: "winrate-desc", label: "Win % ↓" },
-              ]}
-              sortFunction={(a, b, sortType) => {
-                const [aSkill, aStats] = a
-                const [bSkill, bStats] = b
-                const aWinRate = aStats.wins / (aStats.wins + aStats.losses)
-                const bWinRate = bStats.wins / (bStats.wins + bStats.losses)
+                )}
+                sortOptions={[
+                  { value: "skill-asc", label: "Skill ↑" },
+                  { value: "skill-desc", label: "Skill ↓" },
+                  { value: "winrate-asc", label: "Win % ↑" },
+                  { value: "winrate-desc", label: "Win % ↓" },
+                ]}
+                sortFunction={(a, b, sortType) => {
+                  const [skillA, statsA] = a
+                  const [skillB, statsB] = b
+                  const skillLevelA = parseInt(skillA)
+                  const skillLevelB = parseInt(skillB)
+                  const winRateA = statsA.wins / (statsA.wins + statsA.losses)
+                  const winRateB = statsB.wins / (statsB.wins + statsB.losses)
 
-                switch (sortType) {
-                  case "skill-asc":
-                    return parseInt(aSkill) - parseInt(bSkill)
-                  case "skill-desc":
-                    return parseInt(bSkill) - parseInt(aSkill)
-                  case "winrate-asc":
-                    return aWinRate - bWinRate
-                  case "winrate-desc":
-                    return bWinRate - aWinRate
-                  default:
-                    return 0
-                }
-              }}
-            />
+                  switch (sortType) {
+                    case "skill-asc":
+                      return skillLevelA - skillLevelB
+                    case "skill-desc":
+                      return skillLevelB - skillLevelA
+                    case "winrate-asc":
+                      return winRateA - winRateB
+                    case "winrate-desc":
+                      return winRateB - winRateA
+                    default:
+                      return skillLevelA - skillLevelB
+                  }
+                }}
+              />
 
-            <SortableCard
-              heading="By Opponent Skill"
-              data={selectedPlayer.byOpponentSkill}
-              sortState={oppSkillSort}
-              onSortChange={setOppSkillSort}
-              renderItem={([skill, stats]) => (
-                <View key={skill} style={themed($statRow)}>
-                  <Text style={themed($statLabel)} text={`Opponent Skill ${skill}`} />
-                  <View style={themed($statValues)}>
-                    <Text style={themed($winText)} text={`${stats.wins}W`} />
-                    <Text style={themed($lossText)} text={`${stats.losses}L`} />
-                    <Text
-                      style={themed($winPercentText)}
-                      text={`(${Math.round((stats.wins / (stats.wins + stats.losses)) * 100)}%)`}
-                    />
+              <SortableCard
+                heading="By Skill Difference"
+                data={selectedPlayer.bySkillDifference}
+                sortState={skillDiffSort}
+                onSortChange={setSkillDiffSort}
+                renderItem={([difference, stats]) => (
+                  <View key={difference} style={themed($statRow)}>
+                    <Text style={themed($statLabel)} text={difference} />
+                    <View style={themed($statValues)}>
+                      <Text style={themed($winText)} text={`${stats.wins}W`} />
+                      <Text style={themed($lossText)} text={`${stats.losses}L`} />
+                      <Text
+                        style={themed($winPercentText)}
+                        text={`(${Math.round((stats.wins / (stats.wins + stats.losses)) * 100)}%)`}
+                      />
+                    </View>
                   </View>
-                </View>
-              )}
-              sortOptions={[
-                { value: "skill-asc", label: "Skill ↑" },
-                { value: "skill-desc", label: "Skill ↓" },
-                { value: "winrate-asc", label: "Win % ↑" },
-                { value: "winrate-desc", label: "Win % ↓" },
-              ]}
-              sortFunction={(a, b, sortType) => {
-                const [aSkill, aStats] = a
-                const [bSkill, bStats] = b
-                const aWinRate = aStats.wins / (aStats.wins + aStats.losses)
-                const bWinRate = bStats.wins / (bStats.wins + bStats.losses)
+                )}
+                sortOptions={[
+                  { value: "diff-asc", label: "Difference ↑" },
+                  { value: "diff-desc", label: "Difference ↓" },
+                  { value: "winrate-asc", label: "Win % ↑" },
+                  { value: "winrate-desc", label: "Win % ↓" },
+                ]}
+                sortFunction={(a, b, sortType) => {
+                  const [diffA, statsA] = a
+                  const [diffB, statsB] = b
+                  const diffLevelA = parseInt(diffA)
+                  const diffLevelB = parseInt(diffB)
+                  const winRateA = statsA.wins / (statsA.wins + statsA.losses)
+                  const winRateB = statsB.wins / (statsB.wins + statsB.losses)
 
-                switch (sortType) {
-                  case "skill-asc":
-                    return parseInt(aSkill) - parseInt(bSkill)
-                  case "skill-desc":
-                    return parseInt(bSkill) - parseInt(aSkill)
-                  case "winrate-asc":
-                    return aWinRate - bWinRate
-                  case "winrate-desc":
-                    return bWinRate - aWinRate
-                  default:
-                    return 0
-                }
-              }}
-            />
-
-            <SortableCard
-              heading="By Difference (Me vs Opp)"
-              data={selectedPlayer.bySkillDifference}
-              sortState={skillDiffSort}
-              onSortChange={setSkillDiffSort}
-              renderItem={([difference, stats]) => (
-                <View key={difference} style={themed($statRow)}>
-                  <Text style={themed($statLabel)} text={`${difference} Difference`} />
-                  <View style={themed($statValues)}>
-                    <Text style={themed($winText)} text={`${stats.wins}W`} />
-                    <Text style={themed($lossText)} text={`${stats.losses}L`} />
-                    <Text
-                      style={themed($winPercentText)}
-                      text={`(${Math.round((stats.wins / (stats.wins + stats.losses)) * 100)}%)`}
-                    />
-                  </View>
-                </View>
-              )}
-              sortOptions={[
-                { value: "diff-asc", label: "Difference ↑" },
-                { value: "diff-desc", label: "Difference ↓" },
-                { value: "winrate-asc", label: "Win % ↑" },
-                { value: "winrate-desc", label: "Win % ↓" },
-              ]}
-              sortFunction={(a, b, sortType) => {
-                const [aDiff, aStats] = a
-                const [bDiff, bStats] = b
-                const aWinRate = aStats.wins / (aStats.wins + aStats.losses)
-                const bWinRate = bStats.wins / (bStats.wins + bStats.losses)
-
-                switch (sortType) {
-                  case "diff-asc":
-                    return parseInt(aDiff) - parseInt(bDiff)
-                  case "diff-desc":
-                    return parseInt(bDiff) - parseInt(aDiff)
-                  case "winrate-asc":
-                    return aWinRate - bWinRate
-                  case "winrate-desc":
-                    return bWinRate - aWinRate
-                  default:
-                    return 0
-                }
-              }}
-            />
-          </ScrollView>
-        )}
+                  switch (sortType) {
+                    case "diff-asc":
+                      return diffLevelA - diffLevelB
+                    case "diff-desc":
+                      return diffLevelB - diffLevelA
+                    case "winrate-asc":
+                      return winRateA - winRateB
+                    case "winrate-desc":
+                      return winRateB - winRateA
+                    default:
+                      return diffLevelA - diffLevelB
+                  }
+                }}
+              />
+            </ScrollView>
+          )}
+        </View>
       </View>
     </Screen>
   )
@@ -1145,7 +999,7 @@ const $topContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
   paddingHorizontal: spacing.lg,
 })
 
-const $bottomContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
+const _$bottomContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
   paddingHorizontal: spacing.lg,
   paddingBottom: spacing.xl,
   alignItems: "center",
@@ -1258,11 +1112,7 @@ const $iconButton: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
   alignItems: "center",
 })
 
-const $iconText: ThemedStyle<TextStyle> = ({ colors }) => ({
-  fontSize: 14,
-  fontWeight: "600",
-  color: colors.text,
-})
+
 
 const $addPlayerButton: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
   backgroundColor: colors.palette.neutral200,
@@ -1331,6 +1181,8 @@ const $statCard: ThemedStyle<ViewStyle> = ({ spacing, colors }) => ({
   shadowOpacity: 0,
   elevation: 0,
 })
+
+
 
 const $confirmationCard: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
   backgroundColor: colors.palette.neutral100,
@@ -1403,7 +1255,7 @@ const $overallRow: ThemedStyle<ViewStyle> = ({ spacing }) => ({
   flexDirection: "row",
   justifyContent: "space-between",
   alignItems: "center",
-  paddingVertical: spacing.xs,
+  paddingVertical: spacing.xxs,
 })
 
 const $statLabel: ThemedStyle<TextStyle> = ({ colors }) => ({
@@ -1436,34 +1288,7 @@ const $winPercentText: ThemedStyle<TextStyle> = () => ({
   color: "#6b7280", // Grey color for win percentage
 })
 
-const $sortContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
-  paddingHorizontal: spacing.lg,
-  paddingBottom: spacing.md,
-})
 
-const $sortLabel: ThemedStyle<TextStyle> = ({ colors, spacing }) => ({
-  fontSize: 16,
-  fontWeight: "600",
-  color: colors.text,
-  marginBottom: spacing.sm,
-})
-
-const $dropdownContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
-  alignItems: "flex-start",
-})
-
-const $dropdownButton: ThemedStyle<TextStyle> = ({ colors, spacing }) => ({
-  fontSize: 14,
-  fontWeight: "500",
-  color: colors.text,
-  backgroundColor: colors.palette.neutral100,
-  paddingHorizontal: spacing.md,
-  paddingVertical: spacing.sm,
-  borderRadius: 8,
-  borderWidth: 1,
-  borderColor: colors.palette.neutral300,
-  textAlign: "center",
-})
 
 const $cardHeaderRow: ThemedStyle<ViewStyle> = ({ spacing }) => ({
   flexDirection: "row",
@@ -1656,4 +1481,40 @@ const $backButton: ThemedStyle<ViewStyle> = ({ spacing }) => ({
   height: 40,
   justifyContent: "center",
   alignItems: "center",
+})
+
+const $loadingContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
+  flex: 1,
+  justifyContent: "center",
+  alignItems: "center",
+  paddingHorizontal: spacing.xl,
+})
+
+const $loadingTitle: ThemedStyle<TextStyle> = ({ spacing }) => ({
+  fontSize: 24,
+  lineHeight: 32,
+  fontWeight: "900",
+  textAlign: "center",
+  marginBottom: spacing.md,
+})
+
+const $loadingSubtitle: ThemedStyle<TextStyle> = ({ colors, spacing }) => ({
+  fontSize: 16,
+  lineHeight: 24,
+  color: colors.palette.neutral600,
+  textAlign: "center",
+})
+
+const $buttonContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
+  paddingHorizontal: spacing.lg,
+  paddingBottom: spacing.md,
+  width: "100%",
+})
+
+const $statsContent: ThemedStyle<ViewStyle> = ({ spacing }) => ({
+  flex: 1,
+  paddingHorizontal: spacing.md,
+  paddingTop: spacing.sm,
+  paddingBottom: spacing.md,
+  gap: spacing.sm,
 })

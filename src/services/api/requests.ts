@@ -3,17 +3,21 @@ import {
   clearAuthData,
   isAuthenticated as checkAuth,
   getCurrentUser as getStoredUser,
+  getAuthCookie,
 } from "@/utils/storage/authStorage"
+
 import { api } from "./index"
 
 // Types for API requests and responses
 export interface SignUpRequest {
-  username: string
+  email: string
   password: string
+  givenName: string
+  familyName: string
 }
 
 export interface SignInRequest {
-  username: string
+  email: string
   password: string
 }
 
@@ -21,7 +25,9 @@ export interface SignUpResponse {
   message?: string
   user?: {
     id: string
-    username: string
+    email: string
+    givenName: string
+    familyName: string
   }
   error?: string
 }
@@ -30,8 +36,35 @@ export interface SignInResponse {
   message?: string
   user?: {
     id: string
-    username: string
+    email: string
+    givenName: string
+    familyName: string
+    profilePicture?: string
   }
+  error?: string
+}
+
+export interface UpdateProfileRequest {
+  email?: string
+  givenName?: string
+  familyName?: string
+  profilePicture?: string
+}
+
+export interface UpdateProfileResponse {
+  message?: string
+  user?: {
+    id: string
+    email: string
+    givenName: string
+    familyName: string
+    profilePicture?: string
+  }
+  error?: string
+}
+
+export interface DeleteAccountResponse {
+  message?: string
   error?: string
 }
 
@@ -99,7 +132,8 @@ export interface ReportGetResponse {
 }
 
 // API endpoints
-const API_BASE_URL = "https://onthehill.app/api"
+// const API_BASE_URL = "https://onthehill.app/api"
+const API_BASE_URL = "http://localhost:5173/api"
 
 // Authentication endpoints
 export const authApi = {
@@ -144,6 +178,40 @@ export const authApi = {
   signOut: async (): Promise<void> => {
     await api.apisauce.post(`${API_BASE_URL}/auth/signout`)
     clearAuthData()
+  },
+
+  /**
+   * Update user profile
+   */
+  updateProfile: async (data: UpdateProfileRequest): Promise<UpdateProfileResponse> => {
+    const response = await api.apisauce.put(`${API_BASE_URL}/auth/profile`, data)
+    const result = response.data as UpdateProfileResponse
+
+    // Update stored auth data if update successful
+    if (result.user) {
+      const currentUser = getStoredUser()
+      const cookie = getAuthCookie()
+      if (currentUser && cookie) {
+        storeAuthData(cookie, result.user)
+      }
+    }
+
+    return result
+  },
+
+  /**
+   * Delete user account
+   */
+  deleteAccount: async (): Promise<DeleteAccountResponse> => {
+    const response = await api.apisauce.post(`${API_BASE_URL}/auth/delete`)
+    const result = response.data as DeleteAccountResponse
+
+    // Clear auth data if deletion successful
+    if (!result.error) {
+      clearAuthData()
+    }
+
+    return result
   },
 }
 
