@@ -22,14 +22,14 @@ export default function AppLayout() {
         name="stats"
         options={{
           title: "Stats",
-          tabBarIcon: ({ color, size }) => <TabBarIcon name="📊" color={color} size={size} />,
+          tabBarIcon: ({ color, size }) => <TabBarIcon name="📈" color={color} size={size} />,
         }}
       />
       <Tabs.Screen
         name="scorekeeper"
         options={{
           title: "Scorekeeper",
-          tabBarIcon: ({ color, size }) => <TabBarIcon name="🎯" color={color} size={size} />,
+          tabBarIcon: ({ color, size }) => <TabBarIcon name="📋" color={color} size={size} />,
         }}
       />
       <Tabs.Screen
@@ -37,6 +37,14 @@ export default function AppLayout() {
         options={{
           title: "Profile",
           tabBarIcon: ({ color, size }) => <TabBarIcon name="👤" color={color} size={size} />,
+        }}
+      />
+      <Tabs.Screen
+        name="dataManagement"
+        options={{
+          title: "Data Management",
+          tabBarIcon: ({ color, size }) => <TabBarIcon name="🗂️" color={color} size={size} />,
+          href: null, // Hide from tab bar
         }}
       />
     </Tabs>

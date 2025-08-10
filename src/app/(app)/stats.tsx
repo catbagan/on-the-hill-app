@@ -374,8 +374,6 @@ export const StatsScreen: FC = function StatsScreen() {
     setGameType(type)
   }
 
-
-
   // View 1: Player Name Input (when no players exist or adding new player)
   if (players.length === 0 || showInputForm) {
     // Show confirmation card if we have search results
@@ -459,7 +457,7 @@ export const StatsScreen: FC = function StatsScreen() {
     return (
       <Screen preset="fixed" contentContainerStyle={themed($contentContainer)}>
         <View style={themed($topContainer)}>
-          <Text style={themed($title)} text="📊 Pool Statistics" />
+          <Text style={themed($title)} text="📈 APA Statistics" />
 
           <View style={themed($searchContainer)}>
             <View style={themed($searchCard)}>
@@ -568,7 +566,7 @@ export const StatsScreen: FC = function StatsScreen() {
     return (
       <Screen preset="fixed" contentContainerStyle={themed($contentContainer)}>
         <View style={themed($topContainer)}>
-          <Text style={themed($title)} text="📊 Pool Statistics" />
+          <Text style={themed($title)} text="📈 APA Statistics" />
           <Text
             style={themed($emptyStateText)}
             text="No players found. Please add a player to view statistics."
@@ -581,7 +579,7 @@ export const StatsScreen: FC = function StatsScreen() {
   return (
     <Screen preset="fixed" contentContainerStyle={themed($contentContainer)}>
       <View style={themed($headerContainer)}>
-        <Text style={themed($title)} text="📊 Statistics" />
+        <Text style={themed($title)} text="📈 APA Statistics" />
 
         <View style={themed($tabsContainer)}>
           <View style={themed($playerRowContainer)}>
@@ -1112,8 +1110,6 @@ const $iconButton: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
   alignItems: "center",
 })
 
-
-
 const $addPlayerButton: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
   backgroundColor: colors.palette.neutral200,
   paddingHorizontal: spacing.xs,
@@ -1181,8 +1177,6 @@ const $statCard: ThemedStyle<ViewStyle> = ({ spacing, colors }) => ({
   shadowOpacity: 0,
   elevation: 0,
 })
-
-
 
 const $confirmationCard: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
   backgroundColor: colors.palette.neutral100,
@@ -1287,8 +1281,6 @@ const $winPercentText: ThemedStyle<TextStyle> = () => ({
   fontWeight: "500",
   color: "#6b7280", // Grey color for win percentage
 })
-
-
 
 const $cardHeaderRow: ThemedStyle<ViewStyle> = ({ spacing }) => ({
   flexDirection: "row",

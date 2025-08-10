@@ -15,7 +15,6 @@ import { clearStatsData } from "@/utils/storage/statsStorage"
 export const ProfileScreen: FC = function ProfileScreen() {
   const { themed } = useAppTheme()
   const [isLoading, setIsLoading] = useState(false)
-  const [isDeleting, setIsDeleting] = useState(false)
   const [userData, setUserData] = useState<{
     email: string
     givenName: string
@@ -49,46 +48,7 @@ export const ProfileScreen: FC = function ProfileScreen() {
     })
   }
 
-  const handleDeleteAccount = () => {
-    Alert.alert(
-      "Delete Account",
-      "Are you sure you want to delete your account? This action cannot be undone and all your data will be permanently lost.",
-      [
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: confirmDeleteAccount,
-        },
-      ],
-    )
-  }
 
-  const confirmDeleteAccount = async () => {
-    setIsDeleting(true)
-
-    try {
-      const result = await authApi.deleteAccount()
-
-      if (result.error) {
-        Alert.alert("Delete Failed", result.error)
-        return
-      }
-
-      // Clear stats data and show success message
-      clearStatsData()
-      Alert.alert("Account Deleted", "Your account has been successfully deleted.")
-      router.push("/(auth)/signin" as any)
-    } catch (error) {
-      console.error("Delete account error:", error)
-      Alert.alert("Error", "Failed to delete account. Please try again.")
-    } finally {
-      setIsDeleting(false)
-    }
-  }
 
   const handleSignOut = async () => {
     setIsLoading(true)
@@ -107,6 +67,10 @@ export const ProfileScreen: FC = function ProfileScreen() {
     }
   }
 
+  const handleManageData = () => {
+    router.push("/(app)/dataManagement" as any)
+  }
+
   if (!userData) {
     return (
       <Screen preset="fixed" contentContainerStyle={themed($contentContainer)}>
@@ -122,14 +86,13 @@ export const ProfileScreen: FC = function ProfileScreen() {
   return (
     <Screen preset="fixed" contentContainerStyle={themed($contentContainer)}>
       <View style={themed($topContainer)}>
+        <Text style={themed($title)} text="👤 Profile" />
+
         <View style={themed($profileContainer)}>
           <Card
             style={themed($profileCard)}
             ContentComponent={
               <View style={themed($cardContent)}>
-                <Text style={themed($cardTitle)} text="👤 Profile" />
-                <Text style={themed($cardSubtitle)} text="Your account information" />
-
                 <View style={themed($infoSection)}>
                   <View style={themed($infoRow)}>
                     <Text style={themed($infoLabel)} text="Email:" />
@@ -159,19 +122,20 @@ export const ProfileScreen: FC = function ProfileScreen() {
           style={themed($contactButton)}
           textStyle={themed($contactButtonText)}
         />
+
+        <Button
+          text="Manage Your Data"
+          onPress={handleManageData}
+          style={themed($manageDataButton)}
+          textStyle={themed($manageDataButtonText)}
+        />
+
         <Button
           text={isLoading ? "Signing out..." : "Sign Out"}
           onPress={handleSignOut}
           style={themed($signOutButton)}
           textStyle={themed($signOutButtonText)}
           disabled={isLoading}
-        />
-        <Button
-          text={isDeleting ? "Deleting..." : "Delete Account"}
-          onPress={handleDeleteAccount}
-          style={themed($deleteButton)}
-          textStyle={themed($deleteButtonText)}
-          disabled={isDeleting}
         />
       </View>
     </Screen>
@@ -186,9 +150,18 @@ const $contentContainer: ThemedStyle<ViewStyle> = () => ({
 
 const $topContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
   flex: 1,
-  justifyContent: "center",
+  justifyContent: "flex-start",
   alignItems: "center",
   paddingHorizontal: spacing.lg,
+  paddingTop: "20%",
+})
+
+const $title: ThemedStyle<TextStyle> = ({ spacing }) => ({
+  fontSize: 24,
+  lineHeight: 32,
+  fontWeight: "900",
+  textAlign: "center",
+  marginBottom: spacing.lg,
 })
 
 const $bottomContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
@@ -278,6 +251,7 @@ const $contactButton: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
   borderRadius: 24,
   backgroundColor: colors.palette.neutral200,
   paddingVertical: spacing.md,
+  width: "100%",
 })
 
 const $contactButtonText: ThemedStyle<TextStyle> = ({ colors }) => ({
@@ -287,10 +261,25 @@ const $contactButtonText: ThemedStyle<TextStyle> = ({ colors }) => ({
   color: colors.text,
 })
 
+const $manageDataButton: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
+  borderRadius: 24,
+  backgroundColor: colors.palette.primary100,
+  paddingVertical: spacing.md,
+  width: "100%",
+})
+
+const $manageDataButtonText: ThemedStyle<TextStyle> = ({ colors }) => ({
+  fontSize: 18,
+  lineHeight: 24,
+  textAlignVertical: "center",
+  color: colors.palette.primary500,
+})
+
 const $signOutButton: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
   borderRadius: 24,
   backgroundColor: colors.error,
   paddingVertical: spacing.md,
+  width: "100%",
 })
 
 const $signOutButtonText: ThemedStyle<TextStyle> = () => ({
@@ -300,15 +289,4 @@ const $signOutButtonText: ThemedStyle<TextStyle> = () => ({
   color: "white",
 })
 
-const $deleteButton: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
-  borderRadius: 24,
-  backgroundColor: colors.palette.neutral800,
-  paddingVertical: spacing.md,
-})
 
-const $deleteButtonText: ThemedStyle<TextStyle> = () => ({
-  fontSize: 18,
-  lineHeight: 24,
-  textAlignVertical: "center",
-  color: "white",
-})
