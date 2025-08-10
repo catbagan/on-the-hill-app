@@ -86,7 +86,7 @@ export const ScorekeeperScreen: FC = function ScorekeeperScreen() {
 
   const addPlayer = (name: string): Player => {
     const newPlayer: Player = {
-      id: Date.now().toString(),
+      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       name: name.trim(),
     }
     setPlayers((prev) => [...prev, newPlayer])
@@ -123,9 +123,12 @@ export const ScorekeeperScreen: FC = function ScorekeeperScreen() {
 
     setCurrentMatch((prev) => {
       if (!prev) return prev
+      const newCurrentPlayer =
+        prev.currentPlayer.id === prev.player1.id ? prev.player2 : prev.player1
+
       return {
         ...prev,
-        currentPlayer: prev.currentPlayer.id === prev.player1.id ? prev.player2 : prev.player1,
+        currentPlayer: newCurrentPlayer,
         currentInning: prev.currentInning + 1,
       }
     })
@@ -688,74 +691,119 @@ export const ScorekeeperScreen: FC = function ScorekeeperScreen() {
         </View>
 
         <View style={themed($matchContainer)}>
-          <Card
-            style={themed($matchInfoCard)}
-            ContentComponent={
-              <View style={themed($cardContent)}>
-                <Text
-                  style={themed($matchTitle)}
-                  text={`${currentMatch.player1.name} vs ${currentMatch.player2.name}`}
-                />
-                <Text
-                  style={themed($matchDetails)}
-                  text={`Game ${currentMatch.currentGame} of ${Math.max(currentMatch.player1GamesToWin, currentMatch.player2GamesToWin)}`}
-                />
-                <Text
-                  style={themed($matchScore)}
-                  text={`Score: ${currentMatch.player1GamesWon} - ${currentMatch.player2GamesWon}`}
-                />
-                <Text
-                  style={themed($matchTurn)}
-                  text={`Current Turn: ${currentMatch.currentPlayer.name}`}
-                />
-                <Text style={themed($matchInning)} text={`Inning: ${currentMatch.currentInning}`} />
-              </View>
-            }
-          />
-
-          <View style={themed($gameActionsContainer)}>
+          {/* First Row - Player Cards */}
+          <View style={themed($playerCardsRow)}>
             <Card
-              style={themed($gameActionsCard)}
+              style={themed(
+                currentMatch.currentPlayer.id === currentMatch.player1.id
+                  ? $playerCardActive
+                  : $playerCard,
+              )}
               ContentComponent={
-                <View style={themed($cardContent)}>
-                  <Text style={themed($cardTitle)} text="Game Actions" />
-
-                  <View style={themed($buttonContainer)}>
-                    <Button
-                      text="End Turn"
-                      onPress={endTurn}
-                      style={themed($actionButton)}
-                      textStyle={themed($actionButtonText)}
-                    />
-                    <Button
-                      text="Mark Game Over"
-                      onPress={() => {
-                        Alert.alert("Game Over", "Who won?", [
-                          {
-                            text: currentMatch.player1.name,
-                            onPress: () => markGameOver(currentMatch.player1.id),
-                          },
-                          {
-                            text: currentMatch.player2.name,
-                            onPress: () => markGameOver(currentMatch.player2.id),
-                          },
-                          { text: "Cancel", style: "cancel" },
-                        ])
-                      }}
-                      style={themed($actionButton)}
-                      textStyle={themed($actionButtonText)}
-                    />
-                    <Button
-                      text="Cancel Match"
-                      onPress={cancelMatch}
-                      style={themed($cancelMatchButton)}
-                      textStyle={themed($cancelMatchButtonText)}
-                    />
-                  </View>
+                <View style={themed($playerCardContentLeft)}>
+                  <Text style={themed($playerName)} text={currentMatch.player1.name} />
+                  <Text
+                    style={themed($playerStats)}
+                    text={`Games won: ${currentMatch.player1GamesWon}`}
+                  />
+                  <Text
+                    style={themed($playerStats)}
+                    text={`Games req: ${currentMatch.player1GamesToWin}`}
+                  />
+                  {/* <Text style={themed($playerStats)} text="Defensive shots: 0" />
+                  <Text style={themed($playerStats)} text="Innings per win: 0" /> */}
+                </View>
+              }
+            />
+            <Card
+              style={themed(
+                currentMatch.currentPlayer.id === currentMatch.player2.id
+                  ? $playerCardActive
+                  : $playerCard,
+              )}
+              ContentComponent={
+                <View style={themed($playerCardContentRight)}>
+                  <Text style={themed($playerName)} text={currentMatch.player2.name} />
+                  <Text
+                    style={themed($playerStats)}
+                    text={`Games won: ${currentMatch.player2GamesWon}`}
+                  />
+                  <Text
+                    style={themed($playerStats)}
+                    text={`Games req: ${currentMatch.player2GamesToWin}`}
+                  />
+                  {/* <Text style={themed($playerStats)} text="Defensive shots: 0" />
+                  <Text style={themed($playerStats)} text="Innings per win: 0" /> */}
                 </View>
               }
             />
           </View>
+
+          {/* Second Row - Current Turn Card */}
+          <Card
+            style={themed($turnCard)}
+            ContentComponent={
+              <View style={themed($cardContent)}>
+                <Text
+                  style={themed($currentPlayerTurn)}
+                  text={`${currentMatch.currentPlayer.name}'s turn`}
+                />
+                <View style={themed($turnButtonsRow)}>
+                  {/* <Button
+                    text="Defensive Shot"
+                    onPress={() => {
+                      // TODO: Implement defensive shot logic
+                      console.log("Defensive shot")
+                    }}
+                    style={themed($turnButton)}
+                    textStyle={themed($turnButtonText)}
+                  /> */}
+                  <Button
+                    text="End Turn"
+                    onPress={endTurn}
+                    style={themed($turnButton)}
+                    textStyle={themed($turnButtonText)}
+                  />
+                </View>
+              </View>
+            }
+          />
+
+          {/* Third Row - Game Actions Card */}
+          <Card
+            style={themed($gameActionsCard)}
+            ContentComponent={
+              <View style={themed($cardContent)}>
+                <Text style={themed($cardTitle)} text="Game actions" />
+                <View style={themed($buttonContainer)}>
+                  <Button
+                    text="End Game"
+                    onPress={() => {
+                      Alert.alert("Game Over", "Who won?", [
+                        {
+                          text: currentMatch.player1.name,
+                          onPress: () => markGameOver(currentMatch.player1.id),
+                        },
+                        {
+                          text: currentMatch.player2.name,
+                          onPress: () => markGameOver(currentMatch.player2.id),
+                        },
+                        { text: "Cancel", style: "cancel" },
+                      ])
+                    }}
+                    style={themed($actionButton)}
+                    textStyle={themed($actionButtonText)}
+                  />
+                  <Button
+                    text="Cancel Match"
+                    onPress={cancelMatch}
+                    style={themed($cancelMatchButton)}
+                    textStyle={themed($cancelMatchButtonText)}
+                  />
+                </View>
+              </View>
+            }
+          />
         </View>
       </Screen>
     )
@@ -1195,14 +1243,14 @@ const $matchInning: ThemedStyle<TextStyle> = ({ colors }) => ({
   textAlign: "center",
 })
 
-const $gameActionsContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
+const _$gameActionsContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
   marginTop: spacing.sm,
 })
 
 const $gameActionsCard: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
   backgroundColor: colors.palette.neutral100,
-  borderRadius: 24,
-  padding: spacing.lg,
+  borderRadius: 16,
+  padding: spacing.md,
   shadowColor: "#000000",
   shadowOffset: { width: 0, height: 2 },
   shadowOpacity: 0.1,
@@ -1371,6 +1419,108 @@ const $cancelMatchButton: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
 })
 
 const $cancelMatchButtonText: ThemedStyle<TextStyle> = () => ({
+  fontSize: 16,
+  lineHeight: 20,
+  textAlignVertical: "center",
+  fontWeight: "600",
+})
+
+const $playerCardsRow: ThemedStyle<ViewStyle> = ({ spacing }) => ({
+  flexDirection: "row",
+  gap: spacing.xs,
+  marginBottom: spacing.xs,
+})
+
+const $playerCard: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
+  backgroundColor: colors.palette.neutral100,
+  borderRadius: 16,
+  padding: spacing.md,
+  shadowColor: "#000000",
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.1,
+  shadowRadius: 8,
+  elevation: 4,
+  flex: 1,
+})
+
+const $playerCardActive: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
+  backgroundColor: colors.palette.primary100,
+  borderRadius: 16,
+  padding: spacing.md,
+  shadowColor: "#000000",
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.1,
+  shadowRadius: 8,
+  elevation: 4,
+  flex: 1,
+  borderWidth: 2,
+  borderColor: colors.palette.primary500,
+})
+
+const _$playerCardContent: ThemedStyle<ViewStyle> = ({ spacing }) => ({
+  alignItems: "center",
+  gap: spacing.xs,
+})
+
+const $playerCardContentLeft: ThemedStyle<ViewStyle> = ({ spacing }) => ({
+  alignItems: "flex-start",
+  gap: spacing.xxs,
+})
+
+const $playerCardContentRight: ThemedStyle<ViewStyle> = ({ spacing }) => ({
+  alignItems: "flex-end",
+  gap: spacing.xxs,
+})
+
+const $playerName: ThemedStyle<TextStyle> = ({ colors, spacing }) => ({
+  fontSize: 18,
+  fontWeight: "700",
+  color: colors.text,
+  textAlign: "center",
+  marginBottom: spacing.xs,
+})
+
+const $playerStats: ThemedStyle<TextStyle> = ({ colors }) => ({
+  fontSize: 12,
+  color: colors.text,
+  textAlign: "left",
+})
+
+const $turnCard: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
+  backgroundColor: colors.palette.neutral100,
+  borderRadius: 16,
+  padding: spacing.md,
+  shadowColor: "#000000",
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.1,
+  shadowRadius: 8,
+  elevation: 4,
+  marginBottom: spacing.xs,
+})
+
+const $currentPlayerTurn: ThemedStyle<TextStyle> = ({ colors, spacing }) => ({
+  fontSize: 18,
+  fontWeight: "600",
+  textAlign: "center",
+  marginBottom: spacing.sm,
+})
+
+const $turnButtonsRow: ThemedStyle<ViewStyle> = ({ spacing }) => ({
+  flexDirection: "row",
+  gap: spacing.lg,
+  width: "100%",
+  justifyContent: "center",
+})
+
+const $turnButton: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
+  borderRadius: 16,
+  backgroundColor: colors.palette.primary100,
+  width: "100%",
+  paddingVertical: spacing.sm,
+  paddingHorizontal: spacing.sm,
+})
+
+const $turnButtonText: ThemedStyle<TextStyle> = () => ({
   fontSize: 16,
   lineHeight: 20,
   textAlignVertical: "center",
