@@ -53,6 +53,8 @@ export const ScorekeeperScreen: FC = function ScorekeeperScreen() {
   const [player2Name, setPlayer2Name] = useState("")
   const [player1GamesToWin, setPlayer1GamesToWin] = useState(2)
   const [player2GamesToWin, setPlayer2GamesToWin] = useState(2)
+  const [player1PointsToWin, setPlayer1PointsToWin] = useState(25)
+  const [player2PointsToWin, setPlayer2PointsToWin] = useState(25)
   const [nineBallState, setNineBallState] = useState<NineBallState>({
     0: "onTable",
     1: "onTable",
@@ -106,8 +108,8 @@ export const ScorekeeperScreen: FC = function ScorekeeperScreen() {
       player2,
       player1GamesWon: 0,
       player2GamesWon: 0,
-      player1GamesToWin: gameType === "8ball" ? player1GamesToWin : 5,
-      player2GamesToWin: gameType === "8ball" ? player2GamesToWin : 5,
+      player1GamesToWin: gameType === "8ball" ? player1GamesToWin : player1PointsToWin,
+      player2GamesToWin: gameType === "8ball" ? player2GamesToWin : player2PointsToWin,
       currentGame: 1,
       currentPlayer: breakFirst === "player1" ? player1 : player2,
       currentInning: 1,
@@ -342,6 +344,51 @@ export const ScorekeeperScreen: FC = function ScorekeeperScreen() {
     ])
   }
 
+  const showPointsToWinPicker = (player: "player1" | "player2") => {
+    const options = ["14", "19", "25", "31", "38", "46", "55", "65", "75", "Other"]
+
+    Alert.alert("Select points needed to win", "", [
+      ...options.map((option) => ({
+        text: option,
+        onPress: () => {
+          if (option === "Other") {
+            // Show custom input prompt for "Other" option
+            Alert.prompt(
+              "Enter custom points",
+              "Enter the number of points needed to win:",
+              [
+                { text: "Cancel", style: "cancel" },
+                {
+                  text: "OK",
+                  onPress: (value) => {
+                    const points = parseInt(value || "25")
+                    if (points > 0) {
+                      if (player === "player1") {
+                        setPlayer1PointsToWin(points)
+                      } else {
+                        setPlayer2PointsToWin(points)
+                      }
+                    }
+                  },
+                },
+              ],
+                             "plain-text",
+               "25",
+            )
+          } else {
+            const points = parseInt(option)
+            if (player === "player1") {
+              setPlayer1PointsToWin(points)
+            } else {
+              setPlayer2PointsToWin(points)
+            }
+          }
+        },
+      })),
+      { text: "Cancel", style: "cancel" },
+    ])
+  }
+
   // Start Match View
   if (currentView === "start") {
     return (
@@ -466,7 +513,10 @@ export const ScorekeeperScreen: FC = function ScorekeeperScreen() {
                 <View style={themed($playerRowContainer)}>
                   <View style={themed($playerLabelRow)}>
                     <Text style={themed($playerLabel)} text="Player 1" />
-                    <Text style={themed($gamesReqLabel)} text="Games req" />
+                    <Text
+                      style={themed($gamesReqLabel)}
+                      text={selectedGameType === "8ball" ? "Games req" : "Points req"}
+                    />
                   </View>
                   <View style={themed($playerRow)}>
                     <TextField
@@ -477,12 +527,19 @@ export const ScorekeeperScreen: FC = function ScorekeeperScreen() {
                       autoCorrect={false}
                       placeholder="Spongebob"
                     />
-                    {selectedGameType === "8ball" && (
+                    {selectedGameType === "8ball" ? (
                       <TouchableOpacity
                         style={themed($gamesDropdown)}
                         onPress={() => showGamesToWinPicker("player1")}
                       >
                         <Text style={themed($gamesDropdownText)} text={`${player1GamesToWin}`} />
+                      </TouchableOpacity>
+                    ) : (
+                      <TouchableOpacity
+                        style={themed($gamesDropdown)}
+                        onPress={() => showPointsToWinPicker("player1")}
+                      >
+                        <Text style={themed($gamesDropdownText)} text={`${player1PointsToWin}`} />
                       </TouchableOpacity>
                     )}
                   </View>
@@ -491,7 +548,10 @@ export const ScorekeeperScreen: FC = function ScorekeeperScreen() {
                 <View style={themed($playerRowContainer)}>
                   <View style={themed($playerLabelRow)}>
                     <Text style={themed($playerLabel)} text="Player 2" />
-                    <Text style={themed($gamesReqLabel)} text="Games req" />
+                    <Text
+                      style={themed($gamesReqLabel)}
+                      text={selectedGameType === "8ball" ? "Games req" : "Points req"}
+                    />
                   </View>
                   <View style={themed($playerRow)}>
                     <TextField
@@ -502,12 +562,19 @@ export const ScorekeeperScreen: FC = function ScorekeeperScreen() {
                       autoCorrect={false}
                       placeholder="Patrick"
                     />
-                    {selectedGameType === "8ball" && (
+                    {selectedGameType === "8ball" ? (
                       <TouchableOpacity
                         style={themed($gamesDropdown)}
                         onPress={() => showGamesToWinPicker("player2")}
                       >
                         <Text style={themed($gamesDropdownText)} text={`${player2GamesToWin}`} />
+                      </TouchableOpacity>
+                    ) : (
+                      <TouchableOpacity
+                        style={themed($gamesDropdown)}
+                        onPress={() => showPointsToWinPicker("player2")}
+                      >
+                        <Text style={themed($gamesDropdownText)} text={`${player2PointsToWin}`} />
                       </TouchableOpacity>
                     )}
                   </View>
@@ -875,122 +942,137 @@ export const ScorekeeperScreen: FC = function ScorekeeperScreen() {
           <Text style={themed($title)} text="9 Ball" />
         </View>
 
-        <ScrollView showsVerticalScrollIndicator={false}>
-          <View style={themed($matchContainer)}>
+        <View style={themed($matchContainer)}>
+          {/* First Row - Player Cards */}
+          <View style={themed($playerCardsRow)}>
             <Card
-              style={themed($matchInfoCard)}
+              style={themed(
+                currentMatch.currentPlayer.id === currentMatch.player1.id
+                  ? $playerCardActive
+                  : $playerCard,
+              )}
               ContentComponent={
-                <View style={themed($cardContent)}>
+                <View style={themed($playerCardContentLeft)}>
+                  <Text style={themed($playerName)} text={currentMatch.player1.name} />
                   <Text
-                    style={themed($matchTitle)}
-                    text={`${currentMatch.player1.name} vs ${currentMatch.player2.name}`}
+                    style={themed($playerStats)}
+                    text={`Points: ${currentMatch.player1GamesWon}`}
                   />
                   <Text
-                    style={themed($matchDetails)}
-                    text={`Game ${currentMatch.currentGame} of ${Math.max(currentMatch.player1GamesToWin, currentMatch.player2GamesToWin)}`}
-                  />
-                  <Text
-                    style={themed($matchScore)}
-                    text={`Score: ${currentMatch.player1GamesWon} - ${currentMatch.player2GamesWon}`}
-                  />
-                  <Text
-                    style={themed($matchTurn)}
-                    text={`Current Turn: ${currentMatch.currentPlayer.name}`}
-                  />
-                  <Text
-                    style={themed($matchInning)}
-                    text={`Inning: ${currentMatch.currentInning}`}
+                    style={themed($playerStats)}
+                    text={`Points req: ${currentMatch.player1GamesToWin}`}
                   />
                 </View>
               }
             />
-
             <Card
-              style={themed($ballsCard)}
+              style={themed(
+                currentMatch.currentPlayer.id === currentMatch.player2.id
+                  ? $playerCardActive
+                  : $playerCard,
+              )}
               ContentComponent={
-                <View style={themed($cardContent)}>
-                  <Text style={themed($cardTitle)} text="Ball States" />
-                  <Text style={themed($cardSubtitle)} text="Tap balls to change their state" />
-
-                  <View style={themed($ballsGrid)}>
-                    {Array.from({ length: 9 }, (_, i) => {
-                      const state = nineBallState[i]
-                      const ballStyle = {
-                        backgroundColor: getBallColor(state, i),
-                        width: 40,
-                        height: 40,
-                        borderRadius: 20,
-                        justifyContent: "center" as const,
-                        alignItems: "center" as const,
-                        margin: 4,
-                        borderWidth: 2,
-                        borderColor: "#000",
-                      }
-
-                      return (
-                        <TouchableOpacity
-                          key={i}
-                          style={ballStyle}
-                          onPress={() => handleBallPress(i)}
-                        >
-                          <Text style={themed($ballText)} text={(i + 1).toString()} />
-                        </TouchableOpacity>
-                      )
-                    })}
-                  </View>
-                </View>
-              }
-            />
-
-            <Card
-              style={themed($gameActionsCard)}
-              ContentComponent={
-                <View style={themed($cardContent)}>
-                  <Text style={themed($cardTitle)} text="Game Actions" />
-
-                  <View style={themed($buttonContainer)}>
-                    <Button
-                      text="End Turn"
-                      onPress={endTurn}
-                      style={themed($actionButton)}
-                      textStyle={themed($actionButtonText)}
-                    />
-                    <Button
-                      text="End Match"
-                      onPress={() => {
-                        Alert.alert("End Match", "Who won the match?", [
-                          {
-                            text: currentMatch.player1.name,
-                            onPress: () => {
-                              markGameOver(currentMatch.player1.id)
-                              endMatch()
-                            },
-                          },
-                          {
-                            text: currentMatch.player2.name,
-                            onPress: () => {
-                              markGameOver(currentMatch.player2.id)
-                              endMatch()
-                            },
-                          },
-                          { text: "Cancel", style: "cancel" },
-                        ])
-                      }}
-                      style={themed($endMatchButton)}
-                      textStyle={themed($endMatchButtonText)}
-                    />
-                    <Button
-                      text="Cancel Match"
-                      onPress={cancelMatch}
-                      style={themed($cancelMatchButton)}
-                      textStyle={themed($cancelMatchButtonText)}
-                    />
-                  </View>
+                <View style={themed($playerCardContentRight)}>
+                  <Text style={themed($playerName)} text={currentMatch.player2.name} />
+                  <Text
+                    style={themed($playerStats)}
+                    text={`Points: ${currentMatch.player2GamesWon}`}
+                  />
+                  <Text
+                    style={themed($playerStats)}
+                    text={`Points req: ${currentMatch.player2GamesToWin}`}
+                  />
                 </View>
               }
             />
           </View>
-        </ScrollView>
+
+          {/* Second Row - Ball States and Turn Card */}
+          <Card
+            style={themed($turnCard)}
+            ContentComponent={
+              <View style={themed($cardContent)}>
+                <Text
+                  style={themed($currentPlayerTurn)}
+                  text={`${currentMatch.currentPlayer.name}'s turn`}
+                />
+                
+                {/* Ball States */}
+                <View style={themed($ballsGrid)}>
+                  {Array.from({ length: 9 }, (_, i) => {
+                    const state = nineBallState[i]
+                    const ballStyle = {
+                      backgroundColor: getBallColor(state, i),
+                      width: 35,
+                      height: 35,
+                      borderRadius: 17.5,
+                      justifyContent: "center" as const,
+                      alignItems: "center" as const,
+                      margin: 3,
+                      borderWidth: 2,
+                      borderColor: "#000",
+                    }
+
+                    return (
+                      <TouchableOpacity
+                        key={i}
+                        style={ballStyle}
+                        onPress={() => handleBallPress(i)}
+                      >
+                        <Text style={themed($ballText)} text={(i + 1).toString()} />
+                      </TouchableOpacity>
+                    )
+                  })}
+                </View>
+
+                <View style={themed($turnButtonsRow)}>
+                  <Button
+                    text="End Turn"
+                    onPress={endTurn}
+                    style={themed($turnButton)}
+                    textStyle={themed($turnButtonText)}
+                  />
+                </View>
+              </View>
+            }
+          />
+
+          {/* Third Row - Game Actions Card */}
+          <Card
+            style={themed($gameActionsCard)}
+            ContentComponent={
+              <View style={themed($cardContent)}>
+                <Text style={themed($cardTitle)} text="Game actions" />
+                <View style={themed($buttonContainer)}>
+                  <Button
+                    text="End Game"
+                    onPress={() => {
+                      Alert.alert("Game Over", "Who won?", [
+                        {
+                          text: currentMatch.player1.name,
+                          onPress: () => markGameOver(currentMatch.player1.id),
+                        },
+                        {
+                          text: currentMatch.player2.name,
+                          onPress: () => markGameOver(currentMatch.player2.id),
+                        },
+                        { text: "Cancel", style: "cancel" },
+                      ])
+                    }}
+                    style={themed($actionButton)}
+                    textStyle={themed($actionButtonText)}
+                  />
+                  <Button
+                    text="Cancel Match"
+                    onPress={cancelMatch}
+                    style={themed($cancelMatchButton)}
+                    textStyle={themed($cancelMatchButtonText)}
+                  />
+                </View>
+              </View>
+            }
+          />
+        </View>
       </Screen>
     )
   }
