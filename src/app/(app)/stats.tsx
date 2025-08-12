@@ -380,8 +380,8 @@ export const StatsScreen: FC = function StatsScreen() {
     if (showConfirmation && playerSearchResult) {
       return (
         <Screen preset="fixed" contentContainerStyle={themed($contentContainer)}>
-          <View style={themed($topContainer)}>
-            <Text style={themed($title)} text="📊 Confirm Player" />
+          <View style={themed($headerContainer)}>
+            <Text style={themed($title)} text="🚀 Confirm Player" />
 
             <Card
               style={themed($confirmationCard)}
@@ -435,7 +435,7 @@ export const StatsScreen: FC = function StatsScreen() {
                       onPress={handleConfirmPlayer}
                       style={themed($primaryButton)}
                       textStyle={themed($primaryButtonText)}
-                      disabled={isLoading}
+                      disabled={sisLoading}
                     />
                     <Button
                       text="Search Again"
@@ -513,68 +513,67 @@ export const StatsScreen: FC = function StatsScreen() {
   // View 2: Player Management (when editing players)
   if (showEditView) {
     return (
-      <Screen preset="fixed" contentContainerStyle={themed($contentContainer)}>
-        <View style={themed($managePlayersContainer)}>
+      <Screen preset="scroll" contentContainerStyle={themed($contentContainer)}>
+        <View style={themed($headerContainer)}>
           <Text style={themed($title)} text="Manage Players" />
+        </View>
 
-          <View style={themed($managePlayersCard)}>
-            <View style={themed($managePlayersCardContent)}>
-              {players.length === 0 ? (
-                <Text style={themed($emptyStateText)} text="No players added yet." />
-              ) : (
-                players.map((player, index) => (
-                  <View
-                    key={player.name}
-                    style={themed([
-                      $playerManagementRow,
-                      index === players.length - 1 && { borderBottomWidth: 0 },
-                    ])}
-                  >
-                    <View style={themed($playerInfo)}>
-                      <Text style={themed($playerName)} text={player.name} />
-                      {playerReportDates[player.name] && (
-                        <Text
-                          style={themed($reportDate)}
-                          text={`Last updated: ${playerReportDates[player.name]}`}
-                        />
-                      )}
-                    </View>
-                    <View style={themed($playerActions)}>
-                      <TouchableOpacity
-                        onPress={() => handleRefreshPlayer(player.name)}
-                        style={themed($actionButton)}
-                        disabled={isLoading}
-                      >
-                        <MaterialCommunityIcons name="refresh" size={20} color="#007AFF" />
-                        <Text style={themed($actionButtonText)} text="Refresh" />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        onPress={() => handleDeletePlayer(player.name)}
-                        style={themed($deleteButton)}
-                      >
-                        <MaterialCommunityIcons name="delete" size={20} color="#FF3B30" />
-                        <Text style={themed($actionButtonText)} text="Delete" />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                ))
-              )}
+        <View style={themed($statsContainer)}>
+          {players.map((player) => (
+            <View key={player.name} style={themed($playerManagementRow)}>
+              <View style={themed($playerInfo)}>
+                <Text style={themed($playerName)} text={player.name} />
+                {playerReportDates[player.name] && (
+                  <Text
+                    style={themed($reportDate)}
+                    text={`Last updated: ${playerReportDates[player.name]}`}
+                  />
+                )}
+              </View>
+              <View style={themed($playerActions)}>
+                <TouchableOpacity
+                  onPress={() => handleRefreshPlayer(player.name)}
+                  style={themed($actionButton)}
+                  disabled={isLoading}
+                >
+                  <MaterialCommunityIcons name="refresh" size={20} color="#007AFF" />
+                  <Text style={themed($actionButtonText)} text="Refresh" />
+                </TouchableOpacity>
 
+                <TouchableOpacity
+                  onPress={() => handleDeletePlayer(player.name)}
+                  style={themed($actionButton)}
+                >
+                  <MaterialCommunityIcons name="delete" size={20} color="#FF3B30" />
+                  <Text style={themed($actionButtonText)} text="Delete" />
+                </TouchableOpacity>
+              </View>
+            </View>
+          ))}
+
+          {isLoading ? (
+            <View style={themed($managePlayerActionRow)}>
+              <Text style={themed($loadingText)} text="Loading..." />
+            </View>
+          ) : (
+            <View style={themed($managePlayerActionRow)}>
               <Button
-                text="Add New Player"
+                text="Add Player"
                 onPress={handleAddPlayer}
-                style={themed($primaryButton)}
-                textStyle={themed($primaryButtonText)}
+                style={themed($managePlayerActionButton)}
+                textStyle={themed($managePlayerActionButtonText)}
+                disabled={isLoading}
               />
 
               <Button
-                text="Back"
+                text="Back to Stats"
                 onPress={() => setShowEditView(false)}
-                style={themed($backButtonStyle)}
-                textStyle={themed($backButtonTextStyle)}
+                style={themed($managePlayerActionButton)}
+                textStyle={themed($managePlayerActionButtonText)}
+                disabled={isLoading}
               />
             </View>
-          </View>
+          )}
         </View>
       </Screen>
     )
@@ -1126,7 +1125,7 @@ const $iconButton: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
   alignItems: "center",
 })
 
-const _$addPlayerButton: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
+const $addPlayerButton: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
   backgroundColor: colors.palette.neutral200,
   paddingHorizontal: spacing.xs,
   paddingVertical: spacing.xxs,
@@ -1136,7 +1135,7 @@ const _$addPlayerButton: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
   maxHeight: 32,
 })
 
-const _$addPlayerButtonText: ThemedStyle<TextStyle> = ({ colors }) => ({
+const $addPlayerButtonText: ThemedStyle<TextStyle> = ({ colors }) => ({
   fontSize: 12,
   fontWeight: "500",
   color: colors.palette.neutral700,
@@ -1357,7 +1356,8 @@ const $playerManagementRow: ThemedStyle<ViewStyle> = ({ spacing }) => ({
   flexDirection: "row",
   justifyContent: "space-between",
   alignItems: "center",
-  paddingVertical: spacing.sm,
+  paddingVertical: spacing.md,
+  paddingHorizontal: spacing.md,
   borderBottomWidth: 1,
   borderBottomColor: "rgba(0,0,0,0.1)",
 })
@@ -1376,36 +1376,25 @@ const $reportDate: ThemedStyle<TextStyle> = ({ colors, spacing }) => ({
 const $playerActions: ThemedStyle<ViewStyle> = ({ spacing }) => ({
   flexDirection: "row",
   gap: spacing.xs,
+  alignContent: "center",
+  justifyContent: "center",
 })
 
 const $actionButton: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
   backgroundColor: colors.palette.neutral200,
-  paddingHorizontal: spacing.sm,
-  paddingVertical: spacing.xs,
-  borderRadius: 20,
-  minHeight: 36,
-  maxHeight: 36,
-  flexDirection: "row",
+  paddingHorizontal: spacing.xs,
+  paddingVertical: spacing.xxs,
+  borderRadius: 24,
+  minHeight: 32,
+  maxHeight: 32,
   alignItems: "center",
-  gap: spacing.xxs,
+  justifyContent: "center",
 })
 
 const $actionButtonText: ThemedStyle<TextStyle> = ({ colors }) => ({
-  fontSize: 13,
-  fontWeight: "600",
+  fontSize: 12,
+  fontWeight: "500",
   color: colors.palette.neutral700,
-})
-
-const $deleteButton: ThemedStyle<ViewStyle> = ({ spacing }) => ({
-  backgroundColor: "#FF3B30",
-  paddingHorizontal: spacing.sm,
-  paddingVertical: spacing.xs,
-  borderRadius: 20,
-  minHeight: 36,
-  maxHeight: 36,
-  flexDirection: "row",
-  alignItems: "center",
-  gap: spacing.xxs,
 })
 
 const $loadingText: ThemedStyle<TextStyle> = ({ colors, spacing }) => ({
@@ -1489,20 +1478,6 @@ const $searchButtonText: ThemedStyle<TextStyle> = () => ({
   fontWeight: "600",
 })
 
-const $searchHeaderRow: ThemedStyle<ViewStyle> = ({ spacing }) => ({
-  flexDirection: "row",
-  alignItems: "center",
-  justifyContent: "space-between",
-  width: "100%",
-})
-
-const _$backButton: ThemedStyle<ViewStyle> = ({ spacing }) => ({
-  width: 40,
-  height: 40,
-  justifyContent: "center",
-  alignItems: "center",
-})
-
 const $backButtonStyle: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
   borderRadius: 24,
   backgroundColor: colors.palette.neutral200,
@@ -1523,32 +1498,25 @@ const $buttonContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
   width: "100%",
 })
 
-// Manage Players View Styles
-const $managePlayersCard: ThemedStyle<ViewStyle> = ({ spacing, colors }) => ({
-  backgroundColor: colors.palette.neutral100,
+const $managePlayerActionRow: ThemedStyle<ViewStyle> = ({ spacing }) => ({
+  flexDirection: "row",
+  justifyContent: "space-between",
+  alignItems: "center",
+  paddingVertical: spacing.md,
+  paddingHorizontal: spacing.md,
+})
+
+const $managePlayerActionButton: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
   borderRadius: 24,
-  padding: spacing.lg,
-  marginBottom: spacing.lg,
-  shadowColor: "#000000",
-  shadowOffset: { width: 0, height: 2 },
-  shadowOpacity: 0.1,
-  shadowRadius: 8,
-  elevation: 4,
+  backgroundColor: colors.palette.primary100,
+  width: "48%",
+  paddingVertical: spacing.md,
+  marginTop: spacing.sm,
 })
 
-const $managePlayersCardContent: ThemedStyle<ViewStyle> = ({ spacing }) => ({
-  width: "100%",
-  gap: spacing.sm,
-})
-
-const _$debugText: ThemedStyle<TextStyle> = ({ colors }) => ({
-  fontSize: 14,
-  color: colors.error,
-  fontWeight: "bold",
-})
-
-const $managePlayersContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
-  flex: 1,
-  paddingHorizontal: spacing.lg,
-  paddingTop: spacing.xl,
+const $managePlayerActionButtonText: ThemedStyle<TextStyle> = () => ({
+  fontSize: 18,
+  lineHeight: 24,
+  textAlignVertical: "center",
+  fontWeight: "600",
 })

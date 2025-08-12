@@ -109,7 +109,7 @@ export const ScorekeeperScreen: FC = function ScorekeeperScreen() {
       }
 
       loadRecentMatches()
-    }, [])
+    }, []),
   )
 
   const addPlayer = (name: string): Player => {
@@ -759,7 +759,10 @@ export const ScorekeeperScreen: FC = function ScorekeeperScreen() {
     return (
       <Screen preset="fixed" contentContainerStyle={themed($contentContainer)}>
         <View style={themed($headerContainer)}>
-          <Text style={themed($title)} text="Who Breaks First?" />
+          <Text
+            style={themed($title)}
+            text={selectedGameType === "8ball" ? "8 Ball Setup" : "9 Ball Setup"}
+          />
         </View>
 
         <View style={themed($gameSetupContainer)}>
@@ -767,7 +770,7 @@ export const ScorekeeperScreen: FC = function ScorekeeperScreen() {
             style={themed($gameSetupCard)}
             ContentComponent={
               <View style={themed($cardContent)}>
-                <Text style={themed($cardTitle)} text="Select the player who will break first" />
+                <Text style={themed($cardTitle)} text="Who is breaking first?" />
                 <Text style={themed($cardSubtitle)} text={`${player1Name} vs ${player2Name}`} />
 
                 <View style={themed($buttonContainer)}>
@@ -1139,9 +1142,9 @@ export const ScorekeeperScreen: FC = function ScorekeeperScreen() {
 
                 {/* Ball State Legend */}
                 <View>
-                  <Text style={{ fontSize: 10, color: "#666", textAlign: "center" }}>
+                  <Text style={themed($ballStateLegend)}>
                     Tap to mark balls at pocketed or dead. Ending the turn will update score and
-                    mark the pocketd or dead balls as off table.
+                    mark the pocketed or dead balls as off table.
                   </Text>
                 </View>
 
@@ -1533,6 +1536,12 @@ const $ballText: ThemedStyle<TextStyle> = () => ({
   color: "#FFF",
   fontWeight: "bold",
   fontSize: 20,
+})
+
+const $ballStateLegend: ThemedStyle<TextStyle> = ({ colors }) => ({
+  fontSize: 10,
+  color: colors.palette.neutral600,
+  textAlign: "center",
 })
 
 const $emptyStateText: ThemedStyle<TextStyle> = ({ colors, spacing }) => ({

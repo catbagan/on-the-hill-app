@@ -235,7 +235,7 @@ export const reportApi = {
     try {
       console.log("Making report API request with data:", data)
       const response = await api.apisauce.post(`${API_BASE_URL}/report/get`, data, {
-        timeout: 60000, // Increase timeout to 60 seconds (1 minute)
+        timeout: 5 * 60 * 1000, // Increase timeout to 5 minute - looking at u kieran
       })
       console.log("Report API raw response:", response)
 
