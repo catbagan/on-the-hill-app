@@ -1,5 +1,6 @@
-import { FC, useState, useEffect } from "react"
+import { FC, useState, useEffect, useCallback } from "react"
 import { TextStyle, View, ViewStyle, Alert, TouchableOpacity, ScrollView } from "react-native"
+import { useFocusEffect } from "@react-navigation/native"
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons"
 
 import { Button } from "@/components/Button"
@@ -37,7 +38,7 @@ interface Match {
 }
 
 interface NineBallState {
-  [key: number]: "onTable" | "pocketed" | "dead" | "offTable"
+  [key: number]: "onTable" | "pocketed" | "dead" | "alreadyPocketed" | "alreadyDead"
 }
 
 export const ScorekeeperScreen: FC = function ScorekeeperScreen() {
@@ -67,7 +68,7 @@ export const ScorekeeperScreen: FC = function ScorekeeperScreen() {
     8: "onTable",
   })
 
-  // Load recent matches from storage on mount
+  // Load recent matches from storage on mount and when screen comes into focus
   useEffect(() => {
     const loadRecentMatches = async () => {
       const storedMatches = getStoredRecentMatches()
@@ -80,11 +81,36 @@ export const ScorekeeperScreen: FC = function ScorekeeperScreen() {
           createdAt: new Date(stored.createdAt),
         }))
         setRecentMatches(matches)
+      } else {
+        setRecentMatches([])
       }
     }
 
     loadRecentMatches()
   }, [])
+
+  // Refresh recent matches when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      const loadRecentMatches = async () => {
+        const storedMatches = getStoredRecentMatches()
+        if (storedMatches.length > 0) {
+          // Convert stored matches back to Match objects with Date objects
+          const matches: Match[] = storedMatches.map((stored) => ({
+            ...stored,
+            player1GamesToWin: (stored as any).player1GamesToWin || 5,
+            player2GamesToWin: (stored as any).player2GamesToWin || 5,
+            createdAt: new Date(stored.createdAt),
+          }))
+          setRecentMatches(matches)
+        } else {
+          setRecentMatches([])
+        }
+      }
+
+      loadRecentMatches()
+    }, [])
+  )
 
   const addPlayer = (name: string): Player => {
     const newPlayer: Player = {
@@ -123,11 +149,119 @@ export const ScorekeeperScreen: FC = function ScorekeeperScreen() {
   const endTurn = () => {
     if (!currentMatch) return
 
+    // Check if 9 ball is marked as dead before ending turn
+    if (currentMatch.gameType === "9ball" && nineBallState[8] === "dead") {
+      Alert.alert(
+        "9 Ball Rule",
+        "9 ball cannot be marked dead. It should be spotted if pocketed illegally.",
+        [{ text: "OK" }],
+      )
+      return
+    }
+
     setCurrentMatch((prev) => {
       if (!prev) return prev
       const newCurrentPlayer =
         prev.currentPlayer.id === prev.player1.id ? prev.player2 : prev.player1
 
+      // For 9 ball, handle scoring and ball state management
+      if (prev.gameType === "9ball") {
+        // Calculate points for current player
+        let pointsEarned = 0
+        let nineBallPocketed = false
+
+        // Count pocketed balls and check for 9 ball
+        Object.entries(nineBallState).forEach(([ballIndex, state]) => {
+          if (state === "pocketed") {
+            const ballNum = parseInt(ballIndex) + 1
+            if (ballNum === 9) {
+              pointsEarned += 2 // 9 ball is worth 2 points
+              nineBallPocketed = true
+            } else {
+              pointsEarned += 1 // Other balls are worth 1 point
+            }
+          }
+        })
+
+        // Update player scores
+        const isPlayer1 = prev.currentPlayer.id === prev.player1.id
+        const newPlayer1GamesWon = isPlayer1
+          ? prev.player1GamesWon + pointsEarned
+          : prev.player1GamesWon
+        const newPlayer2GamesWon = !isPlayer1
+          ? prev.player2GamesWon + pointsEarned
+          : prev.player2GamesWon
+
+        // Move pocketed and dead balls to already states
+        const newNineBallState = { ...nineBallState }
+        Object.keys(newNineBallState).forEach((ballIndex) => {
+          const state = newNineBallState[parseInt(ballIndex)]
+          if (state === "pocketed") {
+            newNineBallState[parseInt(ballIndex)] = "alreadyPocketed"
+          } else if (state === "dead") {
+            newNineBallState[parseInt(ballIndex)] = "alreadyDead"
+          }
+        })
+
+        // If 9 ball was pocketed, reset all balls to on table and keep same player's turn
+        if (nineBallPocketed) {
+          Object.keys(newNineBallState).forEach((ballIndex) => {
+            newNineBallState[parseInt(ballIndex)] = "onTable"
+          })
+        }
+
+        setNineBallState(newNineBallState)
+
+        // Check if a player has won the match
+        const player1WonMatch = newPlayer1GamesWon >= prev.player1GamesToWin
+        const player2WonMatch = newPlayer2GamesWon >= prev.player2GamesToWin
+
+        if (player1WonMatch || player2WonMatch) {
+          // Match is over, show winner and end match
+          const winner = player1WonMatch ? prev.player1 : prev.player2
+          Alert.alert("Match Complete!", `${winner.name} wins the match!`, [
+            {
+              text: "OK",
+              onPress: () => {
+                const completedMatch = { ...prev, isActive: false }
+                const updatedMatches = [completedMatch, ...recentMatches.slice(0, 9)]
+                setRecentMatches(updatedMatches)
+
+                // Save to storage
+                const matchesToStore: StoredMatch[] = updatedMatches.map((match) => ({
+                  ...match,
+                  createdAt: match.createdAt.toISOString(),
+                }))
+                storeRecentMatches(matchesToStore)
+
+                setCurrentMatch(null)
+                setCurrentView("start")
+                setNineBallState({
+                  0: "onTable",
+                  1: "onTable",
+                  2: "onTable",
+                  3: "onTable",
+                  4: "onTable",
+                  5: "onTable",
+                  6: "onTable",
+                  7: "onTable",
+                  8: "onTable",
+                })
+              },
+            },
+          ])
+        }
+
+        return {
+          ...prev,
+          currentPlayer: nineBallPocketed ? prev.currentPlayer : newCurrentPlayer,
+          currentInning: prev.currentInning + 1,
+          player1GamesWon: newPlayer1GamesWon,
+          player2GamesWon: newPlayer2GamesWon,
+        }
+      }
+
+      // For 8 ball, just switch players
       return {
         ...prev,
         currentPlayer: newCurrentPlayer,
@@ -257,24 +391,28 @@ export const ScorekeeperScreen: FC = function ScorekeeperScreen() {
     if (!currentMatch || currentMatch.gameType !== "9ball") return
 
     const currentState = nineBallState[ballIndex]
-    let newState: "onTable" | "pocketed" | "dead" | "offTable"
+    console.log(`Ball ${ballIndex + 1} pressed, current state: ${currentState}`)
 
-    switch (currentState) {
-      case "onTable":
-        newState = "pocketed"
-        break
-      case "pocketed":
-        newState = "dead"
-        break
-      case "dead":
-        newState = "offTable"
-        break
-      case "offTable":
-        newState = "onTable"
-        break
-      default:
-        newState = "onTable"
+    // Don't allow changes for balls that are already pocketed or dead
+    if (currentState === "alreadyPocketed" || currentState === "alreadyDead") {
+      console.log(`Ball ${ballIndex + 1} is already ${currentState}, ignoring`)
+      return
     }
+
+    // Cycle through states: onTable -> pocketed -> dead -> onTable
+    let newState: "onTable" | "pocketed" | "dead" | "alreadyPocketed" | "alreadyDead"
+
+    if (currentState === "onTable") {
+      newState = "pocketed"
+    } else if (currentState === "pocketed") {
+      newState = "dead"
+    } else if (currentState === "dead") {
+      newState = "onTable"
+    } else {
+      newState = "onTable"
+    }
+
+    console.log(`Ball ${ballIndex + 1} changing from ${currentState} to ${newState}`)
 
     setNineBallState((prev) => ({
       ...prev,
@@ -297,11 +435,13 @@ export const ScorekeeperScreen: FC = function ScorekeeperScreen() {
 
     switch (state) {
       case "pocketed":
-        return "#32CD32" // Green for pocketed
+        return "#00F500"
       case "dead":
-        return "#FF4500" // Orange-red for dead
-      case "offTable":
-        return "#808080" // Gray for off table
+        return "#CCCCCC"
+      case "alreadyPocketed":
+        return "#D3FFD3"
+      case "alreadyDead":
+        return "#FFD3D3"
       default:
         return colors[ballIndex]
     }
@@ -372,8 +512,8 @@ export const ScorekeeperScreen: FC = function ScorekeeperScreen() {
                   },
                 },
               ],
-                             "plain-text",
-               "25",
+              "plain-text",
+              "25",
             )
           } else {
             const points = parseInt(option)
@@ -445,8 +585,8 @@ export const ScorekeeperScreen: FC = function ScorekeeperScreen() {
                         text="Tap to quick start with same players"
                       />
 
-                      <View style={themed($matchesList)}>
-                        {recentMatches.slice(0, 3).map((match) => (
+                      <ScrollView style={themed($matchesList)} showsVerticalScrollIndicator={true}>
+                        {recentMatches.map((match) => (
                           <TouchableOpacity
                             key={match.id}
                             style={themed($matchItem)}
@@ -475,7 +615,7 @@ export const ScorekeeperScreen: FC = function ScorekeeperScreen() {
                             </View>
                           </TouchableOpacity>
                         ))}
-                      </View>
+                      </ScrollView>
                     </>
                   ) : (
                     <Text
@@ -826,7 +966,7 @@ export const ScorekeeperScreen: FC = function ScorekeeperScreen() {
                     textStyle={themed($turnButtonText)}
                   /> */}
                   <Button
-                    text="End Turn"
+                    text={`End ${currentMatch.currentPlayer.name}'s Turn`}
                     onPress={endTurn}
                     style={themed($turnButton)}
                     textStyle={themed($turnButtonText)}
@@ -842,7 +982,7 @@ export const ScorekeeperScreen: FC = function ScorekeeperScreen() {
             ContentComponent={
               <View style={themed($cardContent)}>
                 <Text style={themed($cardTitle)} text="Game actions" />
-                <View style={themed($buttonContainer)}>
+                <View style={themed($gameActionButtons)}>
                   <Button
                     text="End Game"
                     onPress={() => {
@@ -994,23 +1134,33 @@ export const ScorekeeperScreen: FC = function ScorekeeperScreen() {
               <View style={themed($cardContent)}>
                 <Text
                   style={themed($currentPlayerTurn)}
-                  text={`${currentMatch.currentPlayer.name}'s turn`}
+                  text={`${currentMatch.currentPlayer.name}'s Turn`}
                 />
-                
+
+                {/* Ball State Legend */}
+                <View>
+                  <Text style={{ fontSize: 10, color: "#666", textAlign: "center" }}>
+                    Tap to mark balls at pocketed or dead. Ending the turn will update score and
+                    mark the pocketd or dead balls as off table.
+                  </Text>
+                </View>
+
                 {/* Ball States */}
                 <View style={themed($ballsGrid)}>
                   {Array.from({ length: 9 }, (_, i) => {
                     const state = nineBallState[i]
+                    const isAlready = state === "alreadyPocketed" || state === "alreadyDead"
                     const ballStyle = {
                       backgroundColor: getBallColor(state, i),
-                      width: 35,
-                      height: 35,
-                      borderRadius: 17.5,
+                      width: 40,
+                      height: 40,
+                      borderRadius: 20,
                       justifyContent: "center" as const,
                       alignItems: "center" as const,
-                      margin: 3,
-                      borderWidth: 2,
+                      margin: 8,
+                      borderWidth: 1,
                       borderColor: "#000",
+                      opacity: isAlready ? 0.3 : 1,
                     }
 
                     return (
@@ -1018,8 +1168,21 @@ export const ScorekeeperScreen: FC = function ScorekeeperScreen() {
                         key={i}
                         style={ballStyle}
                         onPress={() => handleBallPress(i)}
+                        disabled={isAlready}
                       >
-                        <Text style={themed($ballText)} text={(i + 1).toString()} />
+                        <Text
+                          style={[
+                            themed($ballText),
+                            { opacity: isAlready ? 0.3 : 1, color: isAlready ? "#000" : "#fff" },
+                          ]}
+                          text={
+                            state === "pocketed" || state === "alreadyPocketed"
+                              ? "P"
+                              : state === "dead" || state === "alreadyDead"
+                                ? "D"
+                                : (i + 1).toString()
+                          }
+                        />
                       </TouchableOpacity>
                     )
                   })}
@@ -1027,7 +1190,7 @@ export const ScorekeeperScreen: FC = function ScorekeeperScreen() {
 
                 <View style={themed($turnButtonsRow)}>
                   <Button
-                    text="End Turn"
+                    text={`End ${currentMatch.currentPlayer.name}'s Turn`}
                     onPress={endTurn}
                     style={themed($turnButton)}
                     textStyle={themed($turnButtonText)}
@@ -1043,7 +1206,7 @@ export const ScorekeeperScreen: FC = function ScorekeeperScreen() {
             ContentComponent={
               <View style={themed($cardContent)}>
                 <Text style={themed($cardTitle)} text="Game actions" />
-                <View style={themed($buttonContainer)}>
+                <View style={themed($gameActionButtons)}>
                   <Button
                     text="End Game"
                     onPress={() => {
@@ -1098,7 +1261,6 @@ const $topContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
 const $headerContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
   paddingHorizontal: spacing.sm,
   paddingTop: "20%",
-  paddingBottom: spacing.xs,
   flexDirection: "row",
   alignItems: "center",
 })
@@ -1115,7 +1277,6 @@ const $title: ThemedStyle<TextStyle> = ({ spacing }) => ({
 const $gameTypeContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
   width: "100%",
   maxWidth: 400,
-  marginBottom: spacing.lg,
 })
 
 const $gameTypeCard: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
@@ -1136,23 +1297,29 @@ const $cardContent: ThemedStyle<ViewStyle> = ({ spacing }) => ({
 
 const $cardTitle: ThemedStyle<TextStyle> = ({ spacing }) => ({
   fontSize: 20,
-  lineHeight: 28,
+  lineHeight: 24,
   fontWeight: "700",
   textAlign: "center",
-  marginBottom: spacing.xs,
+  marginBottom: spacing.xxxs,
 })
 
 const $cardSubtitle: ThemedStyle<TextStyle> = ({ colors, spacing }) => ({
   fontSize: 14,
-  lineHeight: 20,
+  lineHeight: 16,
   color: colors.palette.neutral600,
   textAlign: "center",
-  marginBottom: spacing.lg,
+  marginBottom: spacing.xxs,
 })
 
 const $buttonContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
   gap: spacing.sm,
   width: "100%",
+})
+
+const $gameActionButtons: ThemedStyle<ViewStyle> = ({ spacing }) => ({
+  gap: spacing.sm,
+  width: "100%",
+  flexDirection: "row",
 })
 
 const $gameTypeButton: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
@@ -1172,7 +1339,7 @@ const $gameTypeButtonText: ThemedStyle<TextStyle> = () => ({
 const $recentMatchesContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
   width: "100%",
   maxWidth: 400,
-  marginBottom: spacing.xl,
+  marginBottom: spacing.md,
 })
 
 const $recentMatchesCard: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
@@ -1188,6 +1355,7 @@ const $recentMatchesCard: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
 
 const $matchesList: ThemedStyle<ViewStyle> = ({ spacing }) => ({
   width: "100%",
+  height: 200,
   gap: spacing.sm,
 })
 
@@ -1198,6 +1366,7 @@ const $matchItem: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
   padding: spacing.md,
   backgroundColor: colors.palette.neutral200,
   borderRadius: 16,
+  margin: spacing.xxs,
 })
 
 const $matchInfo: ThemedStyle<ViewStyle> = ({ spacing }) => ({
@@ -1343,7 +1512,7 @@ const $gameActionsCard: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
 const $actionButton: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
   borderRadius: 24,
   backgroundColor: colors.palette.primary100,
-  width: "100%",
+  flex: 1,
   paddingVertical: spacing.md,
 })
 
@@ -1354,42 +1523,16 @@ const $actionButtonText: ThemedStyle<TextStyle> = () => ({
   fontWeight: "600",
 })
 
-const $endMatchButton: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
-  borderRadius: 24,
-  backgroundColor: colors.palette.secondary100,
-  width: "100%",
-  paddingVertical: spacing.md,
-})
-
-const $endMatchButtonText: ThemedStyle<TextStyle> = () => ({
-  fontSize: 16,
-  lineHeight: 20,
-  textAlignVertical: "center",
-  fontWeight: "600",
-})
-
-const $ballsCard: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
-  backgroundColor: colors.palette.neutral100,
-  borderRadius: 24,
-  padding: spacing.lg,
-  shadowColor: "#000000",
-  shadowOffset: { width: 0, height: 2 },
-  shadowOpacity: 0.1,
-  shadowRadius: 8,
-  elevation: 4,
-})
-
 const $ballsGrid: ThemedStyle<ViewStyle> = ({ spacing }) => ({
   flexDirection: "row",
   flexWrap: "wrap",
   justifyContent: "center",
-  marginTop: spacing.sm,
 })
 
 const $ballText: ThemedStyle<TextStyle> = () => ({
   color: "#FFF",
   fontWeight: "bold",
-  fontSize: 16,
+  fontSize: 20,
 })
 
 const $emptyStateText: ThemedStyle<TextStyle> = ({ colors, spacing }) => ({
@@ -1398,6 +1541,7 @@ const $emptyStateText: ThemedStyle<TextStyle> = ({ colors, spacing }) => ({
   color: colors.palette.neutral600,
   textAlign: "center",
   marginTop: spacing.sm,
+  height: 200,
 })
 
 const $playerRowContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
@@ -1496,7 +1640,7 @@ const $gamesToWinIcon: ThemedStyle<TextStyle> = () => ({
 const $cancelMatchButton: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
   borderRadius: 24,
   backgroundColor: colors.errorBackground,
-  width: "100%",
+  flex: 1,
   paddingVertical: spacing.md,
 })
 
@@ -1510,13 +1654,12 @@ const $cancelMatchButtonText: ThemedStyle<TextStyle> = () => ({
 const $playerCardsRow: ThemedStyle<ViewStyle> = ({ spacing }) => ({
   flexDirection: "row",
   gap: spacing.xs,
-  marginBottom: spacing.xs,
 })
 
 const $playerCard: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
   backgroundColor: colors.palette.neutral100,
   borderRadius: 16,
-  padding: spacing.md,
+  padding: spacing.sm,
   shadowColor: "#000000",
   shadowOffset: { width: 0, height: 2 },
   shadowOpacity: 0.1,
@@ -1528,7 +1671,7 @@ const $playerCard: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
 const $playerCardActive: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
   backgroundColor: colors.palette.primary100,
   borderRadius: 16,
-  padding: spacing.md,
+  padding: spacing.sm,
   shadowColor: "#000000",
   shadowOffset: { width: 0, height: 2 },
   shadowOpacity: 0.1,
@@ -1539,24 +1682,19 @@ const $playerCardActive: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
   borderColor: colors.palette.primary500,
 })
 
-const _$playerCardContent: ThemedStyle<ViewStyle> = ({ spacing }) => ({
-  alignItems: "center",
-  gap: spacing.xs,
-})
-
 const $playerCardContentLeft: ThemedStyle<ViewStyle> = ({ spacing }) => ({
   alignItems: "flex-start",
-  gap: spacing.xxs,
+  padding: spacing.xxxs,
 })
 
 const $playerCardContentRight: ThemedStyle<ViewStyle> = ({ spacing }) => ({
   alignItems: "flex-end",
-  gap: spacing.xxs,
+  padding: spacing.xxxs,
 })
 
 const $playerName: ThemedStyle<TextStyle> = ({ colors, spacing }) => ({
-  fontSize: 18,
-  fontWeight: "700",
+  fontSize: 20,
+  fontWeight: "800",
   color: colors.text,
   textAlign: "center",
   marginBottom: spacing.xs,
@@ -1584,7 +1722,6 @@ const $currentPlayerTurn: ThemedStyle<TextStyle> = ({ colors, spacing }) => ({
   fontSize: 18,
   fontWeight: "600",
   textAlign: "center",
-  marginBottom: spacing.sm,
 })
 
 const $turnButtonsRow: ThemedStyle<ViewStyle> = ({ spacing }) => ({
@@ -1595,7 +1732,7 @@ const $turnButtonsRow: ThemedStyle<ViewStyle> = ({ spacing }) => ({
 })
 
 const $turnButton: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
-  borderRadius: 16,
+  borderRadius: 24,
   backgroundColor: colors.palette.primary100,
   width: "100%",
   paddingVertical: spacing.sm,
