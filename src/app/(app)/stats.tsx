@@ -85,7 +85,7 @@ export const StatsScreen: FC = function StatsScreen() {
   const [error, setError] = useState("")
   const [players, setPlayers] = useState<PlayerStats[]>([])
   const [selectedPlayerIndex, setSelectedPlayerIndex] = useState<number>(-1)
-  const [activeTab, setActiveTab] = useState<"overall" | "headToHead" | "skill">("overall")
+  const [activeTab, setActiveTab] = useState<"overall" | "trending" | "headToHead" | "skill">("overall")
   const [showInputForm, setShowInputForm] = useState<boolean>(true)
   const [gameType, setGameType] = useState<"8ball" | "9ball">("8ball")
   const [headToHeadSort, setHeadToHeadSort] = useState<
@@ -253,6 +253,13 @@ export const StatsScreen: FC = function StatsScreen() {
         byMySkill: reportResult.report.byMySkill || {},
         byOpponentSkill: reportResult.report.byOpponentSkill || {},
         bySkillDifference: reportResult.report.bySkillDifference || {},
+        currentStreak: reportResult.report.currentStreak,
+        longestWinStreak: reportResult.report.longestWinStreak,
+        longestLossStreak: reportResult.report.longestLossStreak,
+        last3Matches: reportResult.report.last3Matches,
+        last5Matches: reportResult.report.last5Matches,
+        last10Matches: reportResult.report.last10Matches,
+        trending: reportResult.report.trending,
       }
 
       const updatedPlayers = [...players]
@@ -338,6 +345,13 @@ export const StatsScreen: FC = function StatsScreen() {
         byMySkill: reportResult.report.byMySkill || {},
         byOpponentSkill: reportResult.report.byOpponentSkill || {},
         bySkillDifference: reportResult.report.bySkillDifference || {},
+        currentStreak: reportResult.report.currentStreak,
+        longestWinStreak: reportResult.report.longestWinStreak,
+        longestLossStreak: reportResult.report.longestLossStreak,
+        last3Matches: reportResult.report.last3Matches,
+        last5Matches: reportResult.report.last5Matches,
+        last10Matches: reportResult.report.last10Matches,
+        trending: reportResult.report.trending,
       }
 
       const newPlayers = [...players, playerStats]
@@ -435,7 +449,7 @@ export const StatsScreen: FC = function StatsScreen() {
                       onPress={handleConfirmPlayer}
                       style={themed($primaryButton)}
                       textStyle={themed($primaryButtonText)}
-                      disabled={sisLoading}
+                      disabled={isLoading}
                     />
                     <Button
                       text="Search Again"
@@ -663,6 +677,11 @@ export const StatsScreen: FC = function StatsScreen() {
                 onPress={() => setActiveTab("overall")}
               />
               <Text
+                style={themed([$tab, activeTab === "trending" && $activeTab])}
+                text="Trending"
+                onPress={() => setActiveTab("trending")}
+              />
+              <Text
                 style={themed([$tab, activeTab === "skill" && $activeTab])}
                 text="Skill"
                 onPress={() => setActiveTab("skill")}
@@ -792,6 +811,159 @@ export const StatsScreen: FC = function StatsScreen() {
                         return positionA.localeCompare(positionB)
                     }
                   }}
+                />
+              )}
+            </ScrollView>
+          )}
+
+          {activeTab === "trending" && (
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {/* Current Streak */}
+              {selectedPlayer.currentStreak !== undefined && (
+                <Card
+                  style={themed($overallStatCard)}
+                  ContentComponent={
+                    <View style={themed($overallRow)}>
+                      <Text weight="bold" text="Current Streak" />
+                      <View style={themed($statValues)}>
+                        <Text
+                          style={themed(selectedPlayer.currentStreak >= 0 ? $winText : $lossText)}
+                          text={`${selectedPlayer.currentStreak >= 0 ? "+" : ""}${selectedPlayer.currentStreak}`}
+                        />
+                        <Text
+                          style={themed($winPercentText)}
+                          text={selectedPlayer.currentStreak >= 0 ? "Wins" : "Losses"}
+                        />
+                      </View>
+                    </View>
+                  }
+                />
+              )}
+
+              {/* Trending Status */}
+              {selectedPlayer.trending && (
+                <Card
+                  style={themed($overallStatCard)}
+                  ContentComponent={
+                    <View style={themed($overallRow)}>
+                      <Text weight="bold" text="Trending" />
+                      <View style={themed($statValues)}>
+                        <Text
+                          style={themed(
+                            selectedPlayer.trending === "UP" ? $winText :
+                            selectedPlayer.trending === "DOWN" ? $lossText :
+                            $winPercentText
+                          )}
+                          text={selectedPlayer.trending}
+                        />
+                      </View>
+                    </View>
+                  }
+                />
+              )}
+
+              {/* Recent Performance */}
+              {(selectedPlayer.last3Matches || selectedPlayer.last5Matches || selectedPlayer.last10Matches) && (
+                <Card
+                  style={themed($statCard)}
+                  ContentComponent={
+                    <View style={themed($cardContent)}>
+                      <View style={themed($cardHeaderRow)}>
+                        <Text weight="bold" text="Recent Performance" />
+                      </View>
+                      {selectedPlayer.last3Matches && (
+                        <View style={themed($statRow)}>
+                          <Text style={themed($statLabel)} text="Last 3 Matches" />
+                          <View style={themed($statValues)}>
+                            <Text style={themed($winText)} text={`${selectedPlayer.last3Matches.wins}W`} />
+                            <Text style={themed($lossText)} text={`${selectedPlayer.last3Matches.losses}L`} />
+                            <Text
+                              style={themed($winPercentText)}
+                              text={`(${Math.round((selectedPlayer.last3Matches.wins / (selectedPlayer.last3Matches.wins + selectedPlayer.last3Matches.losses)) * 100)}%)`}
+                            />
+                          </View>
+                        </View>
+                      )}
+                      {selectedPlayer.last5Matches && (
+                        <View style={themed($statRow)}>
+                          <Text style={themed($statLabel)} text="Last 5 Matches" />
+                          <View style={themed($statValues)}>
+                            <Text style={themed($winText)} text={`${selectedPlayer.last5Matches.wins}W`} />
+                            <Text style={themed($lossText)} text={`${selectedPlayer.last5Matches.losses}L`} />
+                            <Text
+                              style={themed($winPercentText)}
+                              text={`(${Math.round((selectedPlayer.last5Matches.wins / (selectedPlayer.last5Matches.wins + selectedPlayer.last5Matches.losses)) * 100)}%)`}
+                            />
+                          </View>
+                        </View>
+                      )}
+                      {selectedPlayer.last10Matches && (
+                        <View style={themed($statRow)}>
+                          <Text style={themed($statLabel)} text="Last 10 Matches" />
+                          <View style={themed($statValues)}>
+                            <Text style={themed($winText)} text={`${selectedPlayer.last10Matches.wins}W`} />
+                            <Text style={themed($lossText)} text={`${selectedPlayer.last10Matches.losses}L`} />
+                            <Text
+                              style={themed($winPercentText)}
+                              text={`(${Math.round((selectedPlayer.last10Matches.wins / (selectedPlayer.last10Matches.wins + selectedPlayer.last10Matches.losses)) * 100)}%)`}
+                            />
+                          </View>
+                        </View>
+                      )}
+                    </View>
+                  }
+                />
+              )}
+
+              {/* Longest Win Streak */}
+              {selectedPlayer.longestWinStreak && (
+                <Card
+                  style={themed($statCard)}
+                  ContentComponent={
+                    <View style={themed($cardContent)}>
+                      <View style={themed($cardHeaderRow)}>
+                        <Text weight="bold" text="Longest Win Streak" />
+                      </View>
+                      <View style={themed($statRow)}>
+                        <Text style={themed($statLabel)} text="Count" />
+                        <View style={themed($statValues)}>
+                          <Text style={themed($winText)} text={`${selectedPlayer.longestWinStreak.count}W`} />
+                        </View>
+                      </View>
+                      <View style={themed($statRow)}>
+                        <Text style={themed($statLabel)} text="Season" />
+                        <View style={themed($statValues)}>
+                          <Text style={themed($winPercentText)} text={selectedPlayer.longestWinStreak.season} />
+                        </View>
+                      </View>
+                    </View>
+                  }
+                />
+              )}
+
+              {/* Longest Loss Streak */}
+              {selectedPlayer.longestLossStreak && (
+                <Card
+                  style={themed($statCard)}
+                  ContentComponent={
+                    <View style={themed($cardContent)}>
+                      <View style={themed($cardHeaderRow)}>
+                        <Text weight="bold" text="Longest Loss Streak" />
+                      </View>
+                      <View style={themed($statRow)}>
+                        <Text style={themed($statLabel)} text="Count" />
+                        <View style={themed($statValues)}>
+                          <Text style={themed($lossText)} text={`${selectedPlayer.longestLossStreak.count}L`} />
+                        </View>
+                      </View>
+                      <View style={themed($statRow)}>
+                        <Text style={themed($statLabel)} text="Season" />
+                        <View style={themed($statValues)}>
+                          <Text style={themed($winPercentText)} text={selectedPlayer.longestLossStreak.season} />
+                        </View>
+                      </View>
+                    </View>
+                  }
                 />
               )}
             </ScrollView>
@@ -955,19 +1127,32 @@ export const StatsScreen: FC = function StatsScreen() {
                 data={selectedPlayer.bySkillDifference}
                 sortState={skillDiffSort}
                 onSortChange={setSkillDiffSort}
-                renderItem={([difference, stats]) => (
-                  <View key={difference} style={themed($statRow)}>
-                    <Text style={themed($statLabel)} text={difference} />
-                    <View style={themed($statValues)}>
-                      <Text style={themed($winText)} text={`${stats.wins}W`} />
-                      <Text style={themed($lossText)} text={`${stats.losses}L`} />
-                      <Text
-                        style={themed($winPercentText)}
-                        text={`(${Math.round((stats.wins / (stats.wins + stats.losses)) * 100)}%)`}
-                      />
+                renderItem={([difference, stats]) => {
+                  const diffNum = parseInt(difference)
+                  let diffLabel = ""
+                  
+                  if (diffNum === 0) {
+                    diffLabel = "Same skill level"
+                  } else if (diffNum > 0) {
+                    diffLabel = `Playing up ${diffNum} level${diffNum > 1 ? 's' : ''}`
+                  } else {
+                    diffLabel = `Playing down ${Math.abs(diffNum)} level${Math.abs(diffNum) > 1 ? 's' : ''}`
+                  }
+                  
+                  return (
+                    <View key={difference} style={themed($statRow)}>
+                      <Text style={themed($statLabel)} text={diffLabel} />
+                      <View style={themed($statValues)}>
+                        <Text style={themed($winText)} text={`${stats.wins}W`} />
+                        <Text style={themed($lossText)} text={`${stats.losses}L`} />
+                        <Text
+                          style={themed($winPercentText)}
+                          text={`(${Math.round((stats.wins / (stats.wins + stats.losses)) * 100)}%)`}
+                        />
+                      </View>
                     </View>
-                  </View>
-                )}
+                  )
+                }}
                 sortOptions={[
                   { value: "diff-asc", label: "Difference ↑" },
                   { value: "diff-desc", label: "Difference ↓" },
@@ -1017,13 +1202,6 @@ const $topContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
   paddingHorizontal: spacing.lg,
 })
 
-const _$bottomContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
-  paddingHorizontal: spacing.lg,
-  paddingBottom: spacing.xl,
-  alignItems: "center",
-  gap: spacing.md,
-})
-
 const $headerContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
   paddingHorizontal: spacing.sm,
   paddingTop: "20%",
@@ -1059,22 +1237,6 @@ const $primaryButtonText: ThemedStyle<TextStyle> = () => ({
   textAlignVertical: "center",
 })
 
-const _$loadingCard: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
-  backgroundColor: colors.palette.neutral100,
-  borderColor: colors.palette.neutral300,
-  padding: spacing.lg,
-  borderRadius: 24,
-  alignItems: "center",
-})
-
-const _$errorCard: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
-  backgroundColor: colors.error,
-  borderColor: colors.error,
-  padding: spacing.lg,
-  borderRadius: 24,
-  alignItems: "center",
-})
-
 const $playerTabsScrollContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
   flexDirection: "row",
   gap: spacing.sm,
@@ -1101,7 +1263,6 @@ const $activePlayerTab: ThemedStyle<TextStyle> = ({ colors }) => ({
 })
 
 const $tabsContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
-  // marginBottom: spacing.sm,
   paddingHorizontal: spacing.sm,
 })
 
@@ -1125,22 +1286,6 @@ const $iconButton: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
   alignItems: "center",
 })
 
-const $addPlayerButton: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
-  backgroundColor: colors.palette.neutral200,
-  paddingHorizontal: spacing.xs,
-  paddingVertical: spacing.xxs,
-  borderRadius: 20,
-  alignSelf: "flex-start",
-  minHeight: 32,
-  maxHeight: 32,
-})
-
-const $addPlayerButtonText: ThemedStyle<TextStyle> = ({ colors }) => ({
-  fontSize: 12,
-  fontWeight: "500",
-  color: colors.palette.neutral700,
-})
-
 const $gameTypeButton: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
   width: 32,
   height: 32,
@@ -1157,7 +1302,6 @@ const $activeGameTypeButton: ThemedStyle<ViewStyle> = ({ colors }) => ({
 })
 
 const $statsTabsContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
-  marginBottom: spacing.sm,
   flexDirection: "row",
   alignItems: "center",
   gap: spacing.xs,
@@ -1165,7 +1309,7 @@ const $statsTabsContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
 
 const $statsTabsScrollContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
   flexDirection: "row",
-  gap: spacing.sm,
+  gap: spacing.xs,
   paddingHorizontal: spacing.xs,
 })
 

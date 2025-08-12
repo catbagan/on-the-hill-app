@@ -121,6 +121,28 @@ export interface Report {
   byMySkill: { [skill: string]: ReportStats }
   byInnings: { [innings: string]: ReportStats }
   byTeamSituation: { [situation: string]: ReportStats }
+  currentStreak?: number
+  longestWinStreak?: {
+    count: number
+    season: string
+  }
+  longestLossStreak?: {
+    count: number
+    season: string
+  }
+  last3Matches?: {
+    wins: number
+    losses: number
+  }
+  last5Matches?: {
+    wins: number
+    losses: number
+  }
+  last10Matches?: {
+    wins: number
+    losses: number
+  }
+  trending?: "UP" | "DOWN" | "STABLE"
   totalMatches: number
   totalTeams: number
   generatedAt: string
@@ -132,8 +154,8 @@ export interface ReportGetResponse {
 }
 
 // API endpoints
-// const API_BASE_URL = "https://onthehill.app/api"
-const API_BASE_URL = "http://localhost:5173/api"
+const API_BASE_URL = "https://onthehill.app/api"
+// const API_BASE_URL = "http://localhost:5173/api"
 
 // Authentication endpoints
 export const authApi = {

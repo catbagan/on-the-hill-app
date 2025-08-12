@@ -26,6 +26,28 @@ export interface PlayerStats {
   byMySkill: { [skill: string]: { wins: number; losses: number } }
   byOpponentSkill: { [skill: string]: { wins: number; losses: number } }
   bySkillDifference: { [difference: string]: { wins: number; losses: number } }
+  currentStreak?: number
+  longestWinStreak?: {
+    count: number
+    season: string
+  }
+  longestLossStreak?: {
+    count: number
+    season: string
+  }
+  last3Matches?: {
+    wins: number
+    losses: number
+  }
+  last5Matches?: {
+    wins: number
+    losses: number
+  }
+  last10Matches?: {
+    wins: number
+    losses: number
+  }
+  trending?: "UP" | "DOWN" | "STABLE"
 }
 
 // Store players data
