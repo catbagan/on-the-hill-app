@@ -47,6 +47,14 @@ export default function AppLayout() {
           href: null, // Hide from tab bar
         }}
       />
+      <Tabs.Screen
+        name="wrapped"
+        options={{
+          title: "Wrapped",
+          tabBarIcon: ({ color, size }) => <TabBarIcon name="🎁" color={color} size={size} />,
+          href: null, // Hide from tab bar
+        }}
+      />
     </Tabs>
   )
 }

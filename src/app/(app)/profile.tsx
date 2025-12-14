@@ -71,6 +71,10 @@ export const ProfileScreen: FC = function ProfileScreen() {
     router.push("/(app)/dataManagement" as any)
   }
 
+  const handleWrapped = () => {
+    router.push("/(app)/wrapped" as any)
+  }
+
   if (!userData) {
     return (
       <Screen preset="fixed" contentContainerStyle={themed($contentContainer)}>
@@ -116,6 +120,13 @@ export const ProfileScreen: FC = function ProfileScreen() {
       </View>
 
       <View style={themed($bottomContainer)}>
+        <Button
+          text="Your 2025 Wrapped"
+          onPress={handleWrapped}
+          style={themed($wrappedButton)}
+          textStyle={themed($wrappedButtonText)}
+        />
+
         <Button
           text="Contact Us"
           onPress={handleContactUs}
@@ -245,6 +256,21 @@ const $infoValue: ThemedStyle<TextStyle> = ({ colors, typography, spacing }) => 
   textAlign: "right",
   flex: 1,
   marginLeft: spacing.sm,
+})
+
+const $wrappedButton: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
+  borderRadius: 24,
+  backgroundColor: colors.palette.primary500,
+  paddingVertical: spacing.md,
+  width: "100%",
+})
+
+const $wrappedButtonText: ThemedStyle<TextStyle> = () => ({
+  fontSize: 18,
+  lineHeight: 24,
+  textAlignVertical: "center",
+  color: "white",
+  fontWeight: "700",
 })
 
 const $contactButton: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({

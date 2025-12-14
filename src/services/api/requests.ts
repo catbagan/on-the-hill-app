@@ -285,6 +285,51 @@ export const reportApi = {
   },
 }
 
+// Wrapped endpoints
+export interface WrappedGetRequest {
+  memberId: string
+  year: number
+}
+
+export interface WrappedSlide {
+  type: string
+  [key: string]: any
+}
+
+export interface WrappedGetResponse {
+  slides?: WrappedSlide[]
+  error?: string
+}
+
+export const wrappedApi = {
+  /**
+   * Get wrapped data for a player by member ID and year
+   */
+  get: async (data: WrappedGetRequest): Promise<WrappedGetResponse> => {
+    try {
+      console.log("Making wrapped API request with data:", data)
+      const response = await api.apisauce.post(`${API_BASE_URL}/wrapped/year/get`, data)
+      console.log("Wrapped API raw response:", response)
+
+      if (!response.ok) {
+        console.error("Wrapped API error response:", response)
+        return { error: `Server error: ${response.status || "Unknown"}` }
+      }
+
+      if (!response.data) {
+        console.error("Wrapped API returned null data")
+        return { error: "No data received from server" }
+      }
+
+      return response.data as WrappedGetResponse
+    } catch (error) {
+      console.error("Wrapped API request failed:", error)
+      const errorMessage = error instanceof Error ? error.message : "Unknown error"
+      return { error: `Request failed: ${errorMessage}` }
+    }
+  },
+}
+
 // Helper function to check if user is authenticated
 export const isAuthenticated = (): boolean => {
   return checkAuth()
