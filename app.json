@@ -25,7 +25,7 @@
     "edgeToEdgeEnabled": true
   },
   "ios": {
-    "buildNumber": "4",
+    "buildNumber": "6",
     "icon": "./assets/images/icon.png",
     "supportsTablet": true,
     "bundleIdentifier": "com.onthehill",
