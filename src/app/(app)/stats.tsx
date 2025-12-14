@@ -1,5 +1,6 @@
 import { FC, useState, useEffect } from "react"
-import { Alert, ScrollView, TextStyle, TouchableOpacity, View, ViewStyle } from "react-native"
+import { ActivityIndicator, Alert, ScrollView, TextStyle, TouchableOpacity, View, ViewStyle } from "react-native"
+import { useLocalSearchParams } from "expo-router"
 import { Ionicons } from "@expo/vector-icons"
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons"
 
@@ -20,6 +21,7 @@ import {
   getStoredSelectedPlayerIndex,
   type PlayerStats,
 } from "@/utils/storage/statsStorage"
+import { getCurrentUser } from "@/utils/storage/authStorage"
 
 interface SortOption {
   value: string
@@ -80,12 +82,15 @@ const SortableCard = <T extends Record<string, any>>({
 
 export const StatsScreen: FC = function StatsScreen() {
   const { themed } = useAppTheme()
+  const params = useLocalSearchParams<{ autoSearch?: string }>()
   const [playerName, setPlayerName] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const [players, setPlayers] = useState<PlayerStats[]>([])
   const [selectedPlayerIndex, setSelectedPlayerIndex] = useState<number>(-1)
-  const [activeTab, setActiveTab] = useState<"overall" | "trending" | "headToHead" | "skill">("overall")
+  const [activeTab, setActiveTab] = useState<"overall" | "trending" | "headToHead" | "skill">(
+    "overall",
+  )
   const [showInputForm, setShowInputForm] = useState<boolean>(true)
   const [gameType, setGameType] = useState<"8ball" | "9ball">("8ball")
   const [headToHeadSort, setHeadToHeadSort] = useState<
@@ -110,6 +115,8 @@ export const StatsScreen: FC = function StatsScreen() {
   const [showConfirmation, setShowConfirmation] = useState<boolean>(false)
   const [showEditView, setShowEditView] = useState<boolean>(false)
   const [playerReportDates, setPlayerReportDates] = useState<{ [playerName: string]: string }>({})
+  const [userEmail, setUserEmail] = useState<string | null>(null)
+  const [hasAutoSearched, setHasAutoSearched] = useState<boolean>(false)
 
   // Load persisted data on component mount
   useEffect(() => {
@@ -131,7 +138,57 @@ export const StatsScreen: FC = function StatsScreen() {
     }
 
     loadPersistedData()
+
+    // Load current user email
+    const currentUser = getCurrentUser()
+    if (currentUser) {
+      setUserEmail(currentUser.email)
+    }
   }, [])
+
+  // Auto-search for player name if provided via route params (e.g., after signup)
+  useEffect(() => {
+    const performAutoSearch = async () => {
+      if (params.autoSearch && !hasAutoSearched && !isLoading) {
+        const nameToSearch = params.autoSearch.trim()
+        if (nameToSearch) {
+          setHasAutoSearched(true)
+          setPlayerName(nameToSearch)
+          setShowInputForm(true)
+          
+          // Trigger the search automatically
+          setIsLoading(true)
+          setError("")
+
+          try {
+            const result = await playerApi.search({ name: nameToSearch })
+
+            console.log("Auto-search result:", result)
+
+            if (result.error) {
+              setError(result.error)
+              return
+            }
+
+            if (!result.player) {
+              setError("No player found with that name")
+              return
+            }
+
+            setPlayerSearchResult(result)
+            setShowConfirmation(true)
+          } catch (error) {
+            console.error("Auto-search error:", error)
+            setError("Failed to search for player. Please try again.")
+          } finally {
+            setIsLoading(false)
+          }
+        }
+      }
+    }
+
+    performAutoSearch()
+  }, [params.autoSearch, hasAutoSearched, isLoading])
 
   // Persist data whenever it changes
   useEffect(() => {
@@ -186,6 +243,19 @@ export const StatsScreen: FC = function StatsScreen() {
   }
 
   const handleAddPlayer = () => {
+    // Check if user is at the limit (3 players) and not daniel@catbagan.me
+    const isDaniel = userEmail === "daniel@catbagan.me"
+    const isAtLimit = !isDaniel && players.length >= 3
+
+    if (isAtLimit) {
+      Alert.alert(
+        "Player Limit Reached",
+        "You can only show stats for up to 3 players. Delete one first.",
+        [{ text: "OK" }]
+      )
+      return
+    }
+
     setPlayerName("")
     setError("")
     setShowInputForm(true)
@@ -306,6 +376,20 @@ export const StatsScreen: FC = function StatsScreen() {
 
   const handleConfirmPlayer = async () => {
     if (!playerSearchResult || !playerSearchResult.player) return
+
+    // Check if user is at the limit (3 players) and not daniel@catbagan.me
+    const isDaniel = userEmail === "daniel@catbagan.me"
+    const isAtLimit = !isDaniel && players.length >= 3
+
+    if (isAtLimit) {
+      Alert.alert(
+        "Player Limit Reached",
+        "You can only show stats for up to 3 players. Delete one first.",
+        [{ text: "OK" }]
+      )
+      setIsLoading(false)
+      return
+    }
 
     setIsLoading(true)
 
@@ -445,11 +529,26 @@ export const StatsScreen: FC = function StatsScreen() {
 
                   <View style={themed($buttonContainer)}>
                     <Button
-                      text="Add Player"
+                      text={isLoading ? "Loading..." : "Add Player"}
                       onPress={handleConfirmPlayer}
-                      style={themed($primaryButton)}
-                      textStyle={themed($primaryButtonText)}
+                      style={themed([
+                        $primaryButton,
+                        !(userEmail === "daniel@catbagan.me") && players.length >= 3 && $primaryButtonDisabled,
+                      ])}
+                      textStyle={themed([
+                        $primaryButtonText,
+                        !(userEmail === "daniel@catbagan.me") && players.length >= 3 && $primaryButtonTextDisabled,
+                      ])}
                       disabled={isLoading}
+                      RightAccessory={
+                        isLoading
+                          ? ({ style }) => (
+                              <View style={style}>
+                                <ActivityIndicator size="small" color="#000" />
+                              </View>
+                            )
+                          : undefined
+                      }
                     />
                     <Button
                       text="Search Again"
@@ -574,8 +673,14 @@ export const StatsScreen: FC = function StatsScreen() {
               <Button
                 text="Add Player"
                 onPress={handleAddPlayer}
-                style={themed($managePlayerActionButton)}
-                textStyle={themed($managePlayerActionButtonText)}
+                style={themed([
+                  $managePlayerActionButton,
+                  !(userEmail === "daniel@catbagan.me") && players.length >= 3 && $managePlayerActionButtonDisabled,
+                ])}
+                textStyle={themed([
+                  $managePlayerActionButtonText,
+                  !(userEmail === "daniel@catbagan.me") && players.length >= 3 && $managePlayerActionButtonTextDisabled,
+                ])}
                 disabled={isLoading}
               />
 
@@ -617,8 +722,20 @@ export const StatsScreen: FC = function StatsScreen() {
 
         <View style={themed($tabsContainer)}>
           <View style={themed($playerRowContainer)}>
-            <TouchableOpacity onPress={handleAddPlayer} style={themed($iconButton)}>
-              <Ionicons name="add-circle-outline" size={20} color="#000000" />
+            <TouchableOpacity
+              onPress={handleAddPlayer}
+              style={themed([
+                $iconButton,
+                !(userEmail === "daniel@catbagan.me") && players.length >= 3 && $iconButtonDisabled,
+              ])}
+            >
+              <Ionicons
+                name="add-circle-outline"
+                size={20}
+                color={
+                  !(userEmail === "daniel@catbagan.me") && players.length >= 3 ? "#999999" : "#000000"
+                }
+              />
             </TouchableOpacity>
             <TouchableOpacity onPress={handleEditPlayers} style={themed($iconButton)}>
               <Ionicons name="settings-outline" size={16} color="#000000" />
@@ -850,9 +967,11 @@ export const StatsScreen: FC = function StatsScreen() {
                       <View style={themed($statValues)}>
                         <Text
                           style={themed(
-                            selectedPlayer.trending === "UP" ? $winText :
-                            selectedPlayer.trending === "DOWN" ? $lossText :
-                            $winPercentText
+                            selectedPlayer.trending === "UP"
+                              ? $winText
+                              : selectedPlayer.trending === "DOWN"
+                                ? $lossText
+                                : $winPercentText,
                           )}
                           text={selectedPlayer.trending}
                         />
@@ -863,7 +982,9 @@ export const StatsScreen: FC = function StatsScreen() {
               )}
 
               {/* Recent Performance */}
-              {(selectedPlayer.last3Matches || selectedPlayer.last5Matches || selectedPlayer.last10Matches) && (
+              {(selectedPlayer.last3Matches ||
+                selectedPlayer.last5Matches ||
+                selectedPlayer.last10Matches) && (
                 <Card
                   style={themed($statCard)}
                   ContentComponent={
@@ -875,8 +996,14 @@ export const StatsScreen: FC = function StatsScreen() {
                         <View style={themed($statRow)}>
                           <Text style={themed($statLabel)} text="Last 3 Matches" />
                           <View style={themed($statValues)}>
-                            <Text style={themed($winText)} text={`${selectedPlayer.last3Matches.wins}W`} />
-                            <Text style={themed($lossText)} text={`${selectedPlayer.last3Matches.losses}L`} />
+                            <Text
+                              style={themed($winText)}
+                              text={`${selectedPlayer.last3Matches.wins}W`}
+                            />
+                            <Text
+                              style={themed($lossText)}
+                              text={`${selectedPlayer.last3Matches.losses}L`}
+                            />
                             <Text
                               style={themed($winPercentText)}
                               text={`(${Math.round((selectedPlayer.last3Matches.wins / (selectedPlayer.last3Matches.wins + selectedPlayer.last3Matches.losses)) * 100)}%)`}
@@ -888,8 +1015,14 @@ export const StatsScreen: FC = function StatsScreen() {
                         <View style={themed($statRow)}>
                           <Text style={themed($statLabel)} text="Last 5 Matches" />
                           <View style={themed($statValues)}>
-                            <Text style={themed($winText)} text={`${selectedPlayer.last5Matches.wins}W`} />
-                            <Text style={themed($lossText)} text={`${selectedPlayer.last5Matches.losses}L`} />
+                            <Text
+                              style={themed($winText)}
+                              text={`${selectedPlayer.last5Matches.wins}W`}
+                            />
+                            <Text
+                              style={themed($lossText)}
+                              text={`${selectedPlayer.last5Matches.losses}L`}
+                            />
                             <Text
                               style={themed($winPercentText)}
                               text={`(${Math.round((selectedPlayer.last5Matches.wins / (selectedPlayer.last5Matches.wins + selectedPlayer.last5Matches.losses)) * 100)}%)`}
@@ -901,8 +1034,14 @@ export const StatsScreen: FC = function StatsScreen() {
                         <View style={themed($statRow)}>
                           <Text style={themed($statLabel)} text="Last 10 Matches" />
                           <View style={themed($statValues)}>
-                            <Text style={themed($winText)} text={`${selectedPlayer.last10Matches.wins}W`} />
-                            <Text style={themed($lossText)} text={`${selectedPlayer.last10Matches.losses}L`} />
+                            <Text
+                              style={themed($winText)}
+                              text={`${selectedPlayer.last10Matches.wins}W`}
+                            />
+                            <Text
+                              style={themed($lossText)}
+                              text={`${selectedPlayer.last10Matches.losses}L`}
+                            />
                             <Text
                               style={themed($winPercentText)}
                               text={`(${Math.round((selectedPlayer.last10Matches.wins / (selectedPlayer.last10Matches.wins + selectedPlayer.last10Matches.losses)) * 100)}%)`}
@@ -927,13 +1066,19 @@ export const StatsScreen: FC = function StatsScreen() {
                       <View style={themed($statRow)}>
                         <Text style={themed($statLabel)} text="Count" />
                         <View style={themed($statValues)}>
-                          <Text style={themed($winText)} text={`${selectedPlayer.longestWinStreak.count}W`} />
+                          <Text
+                            style={themed($winText)}
+                            text={`${selectedPlayer.longestWinStreak.count}W`}
+                          />
                         </View>
                       </View>
                       <View style={themed($statRow)}>
                         <Text style={themed($statLabel)} text="Season" />
                         <View style={themed($statValues)}>
-                          <Text style={themed($winPercentText)} text={selectedPlayer.longestWinStreak.season} />
+                          <Text
+                            style={themed($winPercentText)}
+                            text={selectedPlayer.longestWinStreak.season}
+                          />
                         </View>
                       </View>
                     </View>
@@ -953,13 +1098,19 @@ export const StatsScreen: FC = function StatsScreen() {
                       <View style={themed($statRow)}>
                         <Text style={themed($statLabel)} text="Count" />
                         <View style={themed($statValues)}>
-                          <Text style={themed($lossText)} text={`${selectedPlayer.longestLossStreak.count}L`} />
+                          <Text
+                            style={themed($lossText)}
+                            text={`${selectedPlayer.longestLossStreak.count}L`}
+                          />
                         </View>
                       </View>
                       <View style={themed($statRow)}>
                         <Text style={themed($statLabel)} text="Season" />
                         <View style={themed($statValues)}>
-                          <Text style={themed($winPercentText)} text={selectedPlayer.longestLossStreak.season} />
+                          <Text
+                            style={themed($winPercentText)}
+                            text={selectedPlayer.longestLossStreak.season}
+                          />
                         </View>
                       </View>
                     </View>
@@ -1130,15 +1281,15 @@ export const StatsScreen: FC = function StatsScreen() {
                 renderItem={([difference, stats]) => {
                   const diffNum = parseInt(difference)
                   let diffLabel = ""
-                  
+
                   if (diffNum === 0) {
                     diffLabel = "Same skill level"
                   } else if (diffNum > 0) {
-                    diffLabel = `Playing up ${diffNum} level${diffNum > 1 ? 's' : ''}`
+                    diffLabel = `Playing up ${diffNum} level${diffNum > 1 ? "s" : ""}`
                   } else {
-                    diffLabel = `Playing down ${Math.abs(diffNum)} level${Math.abs(diffNum) > 1 ? 's' : ''}`
+                    diffLabel = `Playing down ${Math.abs(diffNum)} level${Math.abs(diffNum) > 1 ? "s" : ""}`
                   }
-                  
+
                   return (
                     <View key={difference} style={themed($statRow)}>
                       <Text style={themed($statLabel)} text={diffLabel} />
@@ -1208,7 +1359,7 @@ const $headerContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
   paddingBottom: spacing.xs,
 })
 
-const $statsContainer: ThemedStyle<ViewStyle> = ({ spacing, colors }) => ({
+const $statsContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
   flex: 1,
   paddingHorizontal: spacing.md,
   paddingTop: spacing.sm,
@@ -1330,7 +1481,7 @@ const $activeTab: ThemedStyle<TextStyle> = ({ colors }) => ({
   fontWeight: "600",
 })
 
-const $statCard: ThemedStyle<ViewStyle> = ({ spacing, colors }) => ({
+const $statCard: ThemedStyle<ViewStyle> = ({ spacing }) => ({
   padding: spacing.md,
   marginBottom: spacing.sm,
   shadowOpacity: 0,
@@ -1354,7 +1505,7 @@ const $confirmationCard: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
   marginBottom: spacing.lg,
 })
 
-const $cardContent: ThemedStyle<ViewStyle> = ({ spacing }) => ({
+const $cardContent: ThemedStyle<ViewStyle> = () => ({
   alignItems: "center",
   width: "100%",
 })
@@ -1412,7 +1563,7 @@ const $statRow: ThemedStyle<ViewStyle> = ({ spacing }) => ({
   borderBottomColor: "rgba(0,0,0,0.1)",
 })
 
-const $overallRow: ThemedStyle<ViewStyle> = ({ spacing }) => ({
+const $overallRow: ThemedStyle<ViewStyle> = () => ({
   flexDirection: "row",
   justifyContent: "space-between",
   alignItems: "center",
@@ -1448,17 +1599,11 @@ const $winPercentText: ThemedStyle<TextStyle> = () => ({
   color: "#6b7280", // Grey color for win percentage
 })
 
-const $cardHeaderRow: ThemedStyle<ViewStyle> = ({ spacing }) => ({
+const $cardHeaderRow: ThemedStyle<ViewStyle> = () => ({
   flexDirection: "row",
   justifyContent: "space-between",
   alignItems: "center",
   width: "100%",
-})
-
-const $cardTitle: ThemedStyle<TextStyle> = ({ colors }) => ({
-  fontSize: 18,
-  fontWeight: "600",
-  color: colors.text,
 })
 
 const $sortButton: ThemedStyle<TextStyle> = ({ colors, spacing }) => ({
@@ -1663,4 +1808,27 @@ const $managePlayerActionButtonText: ThemedStyle<TextStyle> = () => ({
   lineHeight: 24,
   textAlignVertical: "center",
   fontWeight: "600",
+})
+
+const $iconButtonDisabled: ThemedStyle<ViewStyle> = ({ colors }) => ({
+  backgroundColor: colors.palette.neutral300,
+  opacity: 0.5,
+})
+
+const $managePlayerActionButtonDisabled: ThemedStyle<ViewStyle> = ({ colors }) => ({
+  backgroundColor: colors.palette.neutral300,
+  opacity: 0.5,
+})
+
+const $managePlayerActionButtonTextDisabled: ThemedStyle<TextStyle> = ({ colors }) => ({
+  color: colors.textDim,
+})
+
+const $primaryButtonDisabled: ThemedStyle<ViewStyle> = ({ colors }) => ({
+  backgroundColor: colors.palette.neutral300,
+  opacity: 0.5,
+})
+
+const $primaryButtonTextDisabled: ThemedStyle<TextStyle> = ({ colors }) => ({
+  color: colors.textDim,
 })

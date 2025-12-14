@@ -5,7 +5,7 @@
   "version": "1.0.1",
   "orientation": "portrait",
   "userInterfaceStyle": "automatic",
-  "icon": "./assets/images/app-icon-all.png",
+  "icon": "./assets/images/icon.png",
   "updates": {
     "fallbackToCacheTimeout": 0
   },
@@ -15,18 +15,18 @@
     "**/*"
   ],
   "android": {
-    "icon": "./assets/images/app-icon-android-legacy.png",
+    "icon": "./assets/images/icon.png",
     "package": "com.onthehill",
     "adaptiveIcon": {
-      "foregroundImage": "./assets/images/app-icon-android-adaptive-foreground.png",
-      "backgroundImage": "./assets/images/app-icon-android-adaptive-background.png"
+      "foregroundImage": "./assets/images/icon.png",
+      "backgroundImage": "./assets/images/icon.png"
     },
     "allowBackup": false,
     "edgeToEdgeEnabled": true
   },
   "ios": {
-    "buildNumber": "2",
-    "icon": "./assets/images/app-icon-ios.png",
+    "buildNumber": "4",
+    "icon": "./assets/images/icon.png",
     "supportsTablet": true,
     "bundleIdentifier": "com.onthehill",
     "privacyManifests": {
@@ -44,7 +44,7 @@
     }
   },
   "web": {
-    "favicon": "./assets/images/app-icon-web-favicon.png",
+    "favicon": "./assets/images/icon.png",
     "bundler": "metro"
   },
   "plugins": [
@@ -53,10 +53,10 @@
     [
       "expo-splash-screen",
       {
-        "image": "./assets/images/app-icon-android-adaptive-foreground.png",
+        "image": "./assets/images/icon-splash.png",
         "imageWidth": 300,
         "resizeMode": "contain",
-        "backgroundColor": "#191015"
+        "backgroundColor": "#C76542"
       }
     ],
     [

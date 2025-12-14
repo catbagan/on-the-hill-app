@@ -54,7 +54,13 @@ export default function SignUpScreen() {
 
       console.log("Sign up successful:", result)
       console.log("User data from signup:", result.user)
-      router.push("/(app)/stats" as any)
+      
+      // Auto-search for the user's name after signup
+      const fullName = `${firstName.trim()} ${lastName.trim()}`
+      router.push({
+        pathname: "/(app)/stats" as any,
+        params: { autoSearch: fullName },
+      })
     } catch (error) {
       console.error("Sign up error:", error)
       Alert.alert("Error", "Failed to create account. Please try again.")
