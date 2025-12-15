@@ -19,6 +19,9 @@ import {
   getStoredPlayerReportDates,
   storeSelectedPlayerIndex,
   getStoredSelectedPlayerIndex,
+  getCachedReport,
+  cacheReport,
+  clearPlayerCache,
   type PlayerStats,
 } from "@/utils/storage/statsStorage"
 import { getCurrentUser } from "@/utils/storage/authStorage"
@@ -117,6 +120,8 @@ export const StatsScreen: FC = function StatsScreen() {
   const [playerReportDates, setPlayerReportDates] = useState<{ [playerName: string]: string }>({})
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [hasAutoSearched, setHasAutoSearched] = useState<boolean>(false)
+  const [availableSeasons, setAvailableSeasons] = useState<string[]>([])
+  const [selectedSeason, setSelectedSeason] = useState<string>("all")
 
   // Load persisted data on component mount
   useEffect(() => {
@@ -145,6 +150,117 @@ export const StatsScreen: FC = function StatsScreen() {
       setUserEmail(currentUser.email)
     }
   }, [])
+
+  // Update available seasons when selected player changes (not when players data updates)
+  useEffect(() => {
+    if (selectedPlayerIndex >= 0 && players[selectedPlayerIndex]) {
+      const currentPlayer = players[selectedPlayerIndex]
+      const seasons = Object.keys(currentPlayer.bySeason || {}).sort((a, b) => {
+        const [seasonA, yearA] = a.split(" ")
+        const [seasonB, yearB] = b.split(" ")
+        const seasonOrder = { "Fall": 0, "Summer": 1, "Spring": 2, "Winter": 3 }
+        
+        if (yearA !== yearB) {
+          return parseInt(yearB) - parseInt(yearA)
+        }
+        return (seasonOrder[seasonA as keyof typeof seasonOrder] ?? 4) - (seasonOrder[seasonB as keyof typeof seasonOrder] ?? 4)
+      })
+      
+      setAvailableSeasons(seasons)
+      setSelectedSeason("all")
+    } else {
+      setAvailableSeasons([])
+      setSelectedSeason("all")
+    }
+  }, [selectedPlayerIndex])
+
+  // Fetch report when season selection changes
+  useEffect(() => {
+    const fetchSeasonReport = async () => {
+      if (selectedPlayerIndex < 0 || !players[selectedPlayerIndex]) return
+      if (isLoading) return // Don't fetch if already loading
+      
+      const currentPlayer = players[selectedPlayerIndex]
+      
+      // Try to find the player's member ID by searching
+      setIsLoading(true)
+      
+      try {
+        const searchResult = await playerApi.search({ name: currentPlayer.name })
+        
+        if (!searchResult.player) {
+          console.log("Could not find player member ID for season filter")
+          setIsLoading(false)
+          return
+        }
+        
+        const memberId = searchResult.player.memberNumber
+        const seasonKey = selectedSeason !== "all" ? selectedSeason : undefined
+        
+        // Check cache first
+        let reportResult = getCachedReport(memberId, seasonKey)
+        
+        if (reportResult) {
+          console.log("Using cached report for season:", selectedSeason)
+        } else {
+          console.log("Fetching report for season:", selectedSeason)
+          const seasonsFilter = seasonKey ? [seasonKey] : undefined
+          reportResult = await reportApi.get({ 
+            memberId,
+            seasons: seasonsFilter,
+          })
+          
+          if (reportResult && !reportResult.error && reportResult.report) {
+            // Cache the result
+            cacheReport(memberId, seasonKey, reportResult)
+          }
+        }
+        
+        if (!reportResult || reportResult.error || !reportResult.report) {
+          console.error("Failed to fetch season report:", reportResult?.error)
+          setIsLoading(false)
+          return
+        }
+        
+        // Update player stats with filtered data
+        const updatedPlayerStats: PlayerStats = {
+          name: currentPlayer.name,
+          overall: {
+            wins: reportResult.report.overallWins || 0,
+            losses: reportResult.report.overallLosses || 0,
+          },
+          byLocation: reportResult.report.byLocation || {},
+          bySeason: reportResult.report.bySession || {},
+          byPosition: reportResult.report.byPosition || {},
+          scoreDistribution: reportResult.report.scoreDistribution || {},
+          byInnings: reportResult.report.byInnings || {},
+          byTeamSituation: reportResult.report.byTeamSituation || {},
+          headToHead: reportResult.report.headToHead || {},
+          byMySkill: reportResult.report.byMySkill || {},
+          byOpponentSkill: reportResult.report.byOpponentSkill || {},
+          bySkillDifference: reportResult.report.bySkillDifference || {},
+          currentStreak: reportResult.report.currentStreak,
+          longestWinStreak: reportResult.report.longestWinStreak,
+          longestLossStreak: reportResult.report.longestLossStreak,
+          last3Matches: reportResult.report.last3Matches,
+          last5Matches: reportResult.report.last5Matches,
+          last10Matches: reportResult.report.last10Matches,
+          trending: reportResult.report.trending,
+        }
+        
+        const updatedPlayers = [...players]
+        updatedPlayers[selectedPlayerIndex] = updatedPlayerStats
+        setPlayers(updatedPlayers)
+        
+      } catch (error) {
+        console.error("Error fetching season report:", error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    
+    fetchSeasonReport()
+  }, [selectedSeason])
 
   // Auto-search for player name if provided via route params (e.g., after signup)
   useEffect(() => {
@@ -294,10 +410,22 @@ export const StatsScreen: FC = function StatsScreen() {
       }
 
       console.log("✅ Player found, member number:", searchResult.player.memberNumber)
-      console.log("📊 Getting fresh report data...")
+      console.log("📊 Clearing cache and getting fresh report data...")
 
-      const reportResult = await reportApi.get({ memberId: searchResult.player.memberNumber })
+      // Clear all cached reports for this player
+      clearPlayerCache(searchResult.player.memberNumber)
+      
+      // Request full report without season filter
+      const reportResult = await reportApi.get({ 
+        memberId: searchResult.player.memberNumber,
+        seasons: undefined, // Get all data
+      })
       console.log("📊 Report result:", reportResult)
+      
+      // Cache the full report
+      if (reportResult && !reportResult.error && reportResult.report) {
+        cacheReport(searchResult.player.memberNumber, undefined, reportResult)
+      }
 
       if (!reportResult || reportResult.error || !reportResult.report) {
         console.log("❌ Report failed:", reportResult?.error)
@@ -335,6 +463,21 @@ export const StatsScreen: FC = function StatsScreen() {
       const updatedPlayers = [...players]
       updatedPlayers[playerIndex] = updatedPlayerStats
       setPlayers(updatedPlayers)
+
+      // Update available seasons and reset to "all"
+      const seasons = Object.keys(updatedPlayerStats.bySeason || {}).sort((a, b) => {
+        const [seasonA, yearA] = a.split(" ")
+        const [seasonB, yearB] = b.split(" ")
+        const seasonOrder = { "Fall": 0, "Summer": 1, "Spring": 2, "Winter": 3 }
+        
+        if (yearA !== yearB) {
+          return parseInt(yearB) - parseInt(yearA)
+        }
+        return (seasonOrder[seasonA as keyof typeof seasonOrder] ?? 4) - (seasonOrder[seasonB as keyof typeof seasonOrder] ?? 4)
+      })
+      
+      setAvailableSeasons(seasons)
+      setSelectedSeason("all")
 
       const currentDate = new Date().toLocaleDateString()
       setPlayerReportDates((prev) => ({
@@ -394,22 +537,44 @@ export const StatsScreen: FC = function StatsScreen() {
     setIsLoading(true)
 
     try {
-      const reportResult = await reportApi.get({ memberId: playerSearchResult.player.memberNumber })
+      const seasonsFilter = selectedSeason !== "all" ? [selectedSeason] : undefined
+      const seasonKey = seasonsFilter?.[0]
+      
+      // Check cache first
+      let reportResult = getCachedReport(playerSearchResult.player.memberNumber, seasonKey)
+      
+      if (reportResult) {
+        console.log("Using cached report for player:", playerSearchResult.player.memberNumber, "season:", seasonKey || "all")
+      } else {
+        console.log("Fetching fresh report from API")
+        reportResult = await reportApi.get({ 
+          memberId: playerSearchResult.player.memberNumber,
+          seasons: seasonsFilter,
+        })
 
-      console.log("Report API response:", reportResult)
+        console.log("Report API response:", reportResult)
 
-      if (!reportResult) {
-        Alert.alert("Error", "No response from server. Please try again.")
-        return
+        if (!reportResult) {
+          Alert.alert("Error", "No response from server. Please try again.")
+          return
+        }
+
+        if (reportResult.error) {
+          Alert.alert("Error", reportResult.error)
+          return
+        }
+
+        if (!reportResult.report) {
+          Alert.alert("Error", "No report data found for this player")
+          return
+        }
+
+        // Cache the successful result
+        cacheReport(playerSearchResult.player.memberNumber, seasonKey, reportResult)
       }
 
-      if (reportResult.error) {
-        Alert.alert("Error", reportResult.error)
-        return
-      }
-
-      if (!reportResult.report) {
-        Alert.alert("Error", "No report data found for this player")
+      if (!reportResult || reportResult.error || !reportResult.report) {
+        Alert.alert("Error", reportResult?.error || "No report data found for this player")
         return
       }
 
@@ -437,6 +602,23 @@ export const StatsScreen: FC = function StatsScreen() {
         last10Matches: reportResult.report.last10Matches,
         trending: reportResult.report.trending,
       }
+
+      // Extract and sort seasons
+      const seasons = Object.keys(playerStats.bySeason).sort((a, b) => {
+        // Parse season strings like "Fall 2025", "Summer 2025", etc.
+        const [seasonA, yearA] = a.split(" ")
+        const [seasonB, yearB] = b.split(" ")
+        const seasonOrder = { "Fall": 0, "Summer": 1, "Spring": 2, "Winter": 3 }
+        
+        // Sort by year first (descending), then by season
+        if (yearA !== yearB) {
+          return parseInt(yearB) - parseInt(yearA)
+        }
+        return (seasonOrder[seasonA as keyof typeof seasonOrder] ?? 4) - (seasonOrder[seasonB as keyof typeof seasonOrder] ?? 4)
+      })
+      
+      setAvailableSeasons(seasons)
+      setSelectedSeason("all") // Default to "all"
 
       const newPlayers = [...players, playerStats]
       setPlayers(newPlayers)
@@ -470,6 +652,10 @@ export const StatsScreen: FC = function StatsScreen() {
       return
     }
     setGameType(type)
+  }
+
+  const handleSelectSeason = (season: string) => {
+    setSelectedSeason(season)
   }
 
   // View 1: Player Name Input (when no players exist or adding new player)
@@ -570,7 +756,7 @@ export const StatsScreen: FC = function StatsScreen() {
     return (
       <Screen preset="fixed" contentContainerStyle={themed($contentContainer)}>
         <View style={themed($headerContainer)}>
-          <Text style={themed($title)} text="📈 APA Statistics" />
+          <Text style={themed($title)} text="📈 Player Stats" />
         </View>
 
         <View style={themed($searchContainer)}>
@@ -665,30 +851,16 @@ export const StatsScreen: FC = function StatsScreen() {
           ))}
 
           {isLoading ? (
-            <View style={themed($managePlayerActionRow)}>
+            <View style={themed($buttonContainer)}>
               <Text style={themed($loadingText)} text="Loading..." />
             </View>
           ) : (
-            <View style={themed($managePlayerActionRow)}>
-              <Button
-                text="Add Player"
-                onPress={handleAddPlayer}
-                style={themed([
-                  $managePlayerActionButton,
-                  !(userEmail === "daniel@catbagan.me") && players.length >= 3 && $managePlayerActionButtonDisabled,
-                ])}
-                textStyle={themed([
-                  $managePlayerActionButtonText,
-                  !(userEmail === "daniel@catbagan.me") && players.length >= 3 && $managePlayerActionButtonTextDisabled,
-                ])}
-                disabled={isLoading}
-              />
-
+            <View style={themed($buttonContainer)}>
               <Button
                 text="Back to Stats"
                 onPress={() => setShowEditView(false)}
-                style={themed($managePlayerActionButton)}
-                textStyle={themed($managePlayerActionButtonText)}
+                style={themed($backButtonStyle)}
+                textStyle={themed($backButtonTextStyle)}
                 disabled={isLoading}
               />
             </View>
@@ -705,7 +877,7 @@ export const StatsScreen: FC = function StatsScreen() {
     return (
       <Screen preset="fixed" contentContainerStyle={themed($contentContainer)}>
         <View style={themed($topContainer)}>
-          <Text style={themed($title)} text="📈 APA Statistics" />
+          <Text style={themed($title)} text="📈 Player Stats" />
           <Text
             style={themed($emptyStateText)}
             text="No players found. Please add a player to view statistics."
@@ -718,7 +890,6 @@ export const StatsScreen: FC = function StatsScreen() {
   return (
     <Screen preset="fixed" contentContainerStyle={themed($contentContainer)}>
       <View style={themed($headerContainer)}>
-        <Text style={themed($title)} text="📈 APA Statistics" />
 
         <View style={themed($tabsContainer)}>
           <View style={themed($playerRowContainer)}>
@@ -769,7 +940,7 @@ export const StatsScreen: FC = function StatsScreen() {
             >
               <MaterialCommunityIcons
                 name="numeric-8-circle"
-                size={18}
+                size={16}
                 color={gameType === "8ball" ? "#000000" : "#666666"}
               />
             </TouchableOpacity>
@@ -779,7 +950,7 @@ export const StatsScreen: FC = function StatsScreen() {
             >
               <MaterialCommunityIcons
                 name="numeric-9-circle"
-                size={18}
+                size={16}
                 color={gameType === "9ball" ? "#000000" : "#666666"}
               />
             </TouchableOpacity>
@@ -810,10 +981,60 @@ export const StatsScreen: FC = function StatsScreen() {
               />
             </ScrollView>
           </View>
+
+          {availableSeasons.length > 0 && (
+            <View style={themed($seasonFilterContainer)}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={themed($seasonScrollContainer)}
+              >
+                <TouchableOpacity
+                  style={themed([
+                    $seasonToggle,
+                    selectedSeason === "all" && $seasonToggleActive,
+                  ])}
+                  onPress={() => handleSelectSeason("all")}
+                >
+                  <Text
+                    style={themed([
+                      $seasonToggleText,
+                      selectedSeason === "all" && $seasonToggleTextActive,
+                    ])}
+                    text="All"
+                  />
+                </TouchableOpacity>
+                {availableSeasons.map((season) => (
+                  <TouchableOpacity
+                    key={season}
+                    style={themed([
+                      $seasonToggle,
+                      selectedSeason === season && $seasonToggleActive,
+                    ])}
+                    onPress={() => handleSelectSeason(season)}
+                  >
+                    <Text
+                      style={themed([
+                        $seasonToggleText,
+                        selectedSeason === season && $seasonToggleTextActive,
+                      ])}
+                      text={season}
+                    />
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          )}
         </View>
       </View>
 
       <View style={themed($contentContainer)}>
+        {isLoading && selectedPlayerIndex >= 0 && (
+          <View style={themed($loadingOverlay)}>
+            <ActivityIndicator size="large" />
+            <Text style={themed($loadingText)} text="Loading stats..." />
+          </View>
+        )}
         <View style={themed($statsContainer)}>
           {activeTab === "overall" && (
             <ScrollView showsVerticalScrollIndicator={false}>
@@ -1356,7 +1577,6 @@ const $topContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
 const $headerContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
   paddingHorizontal: spacing.sm,
   paddingTop: "20%",
-  paddingBottom: spacing.xs,
 })
 
 const $statsContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
@@ -1390,9 +1610,10 @@ const $primaryButtonText: ThemedStyle<TextStyle> = () => ({
 
 const $playerTabsScrollContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
   flexDirection: "row",
-  gap: spacing.sm,
+  gap: spacing.xs,
   paddingHorizontal: spacing.sm,
   paddingLeft: 0,
+  marginBottom: spacing.xxs,
 })
 
 const $playerTab: ThemedStyle<TextStyle> = ({ colors, spacing }) => ({
@@ -1422,7 +1643,6 @@ const $playerRowContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
   alignItems: "center",
   alignContent: "flex-start",
   gap: spacing.xs,
-  marginBottom: spacing.sm,
 })
 
 const $iconButton: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
@@ -1438,12 +1658,12 @@ const $iconButton: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
 })
 
 const $gameTypeButton: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
-  width: 32,
-  height: 32,
+  width: 24,
+  height: 24,
   justifyContent: "center",
   alignItems: "center",
-  paddingVertical: spacing.xxs,
-  paddingHorizontal: spacing.xs,
+  paddingVertical: spacing.xxxs,
+  paddingHorizontal: spacing.xxs,
   backgroundColor: colors.palette.neutral100,
   borderRadius: 24,
 })
@@ -1462,13 +1682,14 @@ const $statsTabsScrollContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
   flexDirection: "row",
   gap: spacing.xs,
   paddingHorizontal: spacing.xs,
+  marginBottom: spacing.xxs,
 })
 
 const $tab: ThemedStyle<TextStyle> = ({ colors, spacing }) => ({
   textAlign: "center",
-  paddingVertical: spacing.xxs,
-  paddingHorizontal: spacing.md,
-  fontSize: 14,
+  paddingVertical: spacing.xxxs,
+  paddingHorizontal: spacing.xs,
+  fontSize: 12,
   fontWeight: "500",
   color: colors.textDim,
   backgroundColor: colors.palette.neutral100,
@@ -1787,41 +2008,9 @@ const $buttonContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
   width: "100%",
 })
 
-const $managePlayerActionRow: ThemedStyle<ViewStyle> = ({ spacing }) => ({
-  flexDirection: "row",
-  justifyContent: "space-between",
-  alignItems: "center",
-  paddingVertical: spacing.md,
-  paddingHorizontal: spacing.md,
-})
-
-const $managePlayerActionButton: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
-  borderRadius: 24,
-  backgroundColor: colors.palette.primary100,
-  width: "48%",
-  paddingVertical: spacing.md,
-  marginTop: spacing.sm,
-})
-
-const $managePlayerActionButtonText: ThemedStyle<TextStyle> = () => ({
-  fontSize: 18,
-  lineHeight: 24,
-  textAlignVertical: "center",
-  fontWeight: "600",
-})
-
 const $iconButtonDisabled: ThemedStyle<ViewStyle> = ({ colors }) => ({
   backgroundColor: colors.palette.neutral300,
   opacity: 0.5,
-})
-
-const $managePlayerActionButtonDisabled: ThemedStyle<ViewStyle> = ({ colors }) => ({
-  backgroundColor: colors.palette.neutral300,
-  opacity: 0.5,
-})
-
-const $managePlayerActionButtonTextDisabled: ThemedStyle<TextStyle> = ({ colors }) => ({
-  color: colors.textDim,
 })
 
 const $primaryButtonDisabled: ThemedStyle<ViewStyle> = ({ colors }) => ({
@@ -1831,4 +2020,48 @@ const $primaryButtonDisabled: ThemedStyle<ViewStyle> = ({ colors }) => ({
 
 const $primaryButtonTextDisabled: ThemedStyle<TextStyle> = ({ colors }) => ({
   color: colors.textDim,
+})
+
+const $seasonFilterContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
+  paddingHorizontal: spacing.sm,
+})
+
+const $seasonScrollContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
+  gap: spacing.xs,
+})
+
+const $seasonToggle: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
+  paddingHorizontal: spacing.xs,
+  paddingVertical: spacing.xxxs,
+  borderRadius: 24,
+  backgroundColor: colors.palette.neutral100,
+})
+
+const $seasonToggleActive: ThemedStyle<ViewStyle> = ({ colors }) => ({
+  backgroundColor: colors.palette.primary100,
+})
+
+const $seasonToggleText: ThemedStyle<TextStyle> = ({ colors }) => ({
+  fontSize: 12,
+  fontWeight: "500",
+  color: colors.textDim,
+})
+
+const $seasonToggleTextActive: ThemedStyle<TextStyle> = ({ colors }) => ({
+  color: colors.palette.primary500,
+  fontWeight: "600",
+})
+
+const $loadingOverlay: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
+  position: "absolute",
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  backgroundColor: colors.background,
+  opacity: 0.95,
+  justifyContent: "center",
+  alignItems: "center",
+  zIndex: 1000,
+  gap: spacing.md,
 })

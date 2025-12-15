@@ -100,6 +100,7 @@ export interface PlayerSearchResponse {
 
 export interface ReportGetRequest {
   memberId: string
+  seasons?: string[]
 }
 
 export interface ReportStats {
