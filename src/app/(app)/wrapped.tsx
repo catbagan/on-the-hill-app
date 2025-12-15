@@ -1,4 +1,4 @@
-import { FC, useState, useRef, useEffect } from "react"
+import { FC, useState, useRef, useCallback } from "react"
 import {
   ScrollView,
   View,
@@ -9,8 +9,9 @@ import {
   NativeSyntheticEvent,
   ActivityIndicator,
   Alert,
+  Share,
 } from "react-native"
-import { router } from "expo-router"
+import { router, useFocusEffect } from "expo-router"
 
 import { Button } from "@/components/Button"
 import { Card } from "@/components/Card"
@@ -31,52 +32,58 @@ export const WrappedScreen: FC = function WrappedScreen() {
   const [isLoading, setIsLoading] = useState(true)
   const scrollViewRef = useRef<ScrollView>(null)
 
-  useEffect(() => {
-    const loadWrapped = async () => {
-      try {
-        // Get the first player from stored players to get memberId
-        const storedPlayers = await getStoredPlayers()
-        if (!storedPlayers || storedPlayers.length === 0) {
-          Alert.alert("No Players", "Please add a player in Stats first to view your wrapped.")
-          router.back()
-          return
-        }
+  const loadWrapped = useCallback(async () => {
+    setIsLoading(true)
+    setSlides([])
+    setCurrentSlide(0)
 
-        // Get the first player's name and search for their memberId
-        const playerName = storedPlayers[0].name
-        const searchResult = await playerApi.search({ name: playerName })
-
-        if (!searchResult.player || !searchResult.player.memberNumber) {
-          Alert.alert("Error", "Could not find player information.")
-          router.back()
-          return
-        }
-
-        const result = await wrappedApi.get({
-          memberId: searchResult.player.memberNumber,
-          year: CURRENT_YEAR,
-        })
-
-        if (result.error) {
-          Alert.alert("Error", result.error)
-          router.back()
-          return
-        }
-
-        if (result.slides) {
-          setSlides(result.slides)
-        }
-      } catch (error) {
-        console.error("Error loading wrapped:", error)
-        Alert.alert("Error", "Failed to load wrapped data. Please try again.")
+    try {
+      // Get the first player from stored players to get memberId
+      const storedPlayers = await getStoredPlayers()
+      if (!storedPlayers || storedPlayers.length === 0) {
+        Alert.alert("No Players", "Please add a player in Stats first to view your wrapped.")
         router.back()
-      } finally {
-        setIsLoading(false)
+        return
       }
-    }
 
-    loadWrapped()
+      // Get the first player's name and search for their memberId
+      const playerName = storedPlayers[0].name
+      const searchResult = await playerApi.search({ name: playerName })
+
+      if (!searchResult.player || !searchResult.player.memberNumber) {
+        Alert.alert("Error", "Could not find player information.")
+        router.back()
+        return
+      }
+
+      const result = await wrappedApi.get({
+        memberId: searchResult.player.memberNumber,
+        year: CURRENT_YEAR,
+      })
+
+      if (result.error) {
+        Alert.alert("Error", result.error)
+        router.back()
+        return
+      }
+
+      if (result.slides) {
+        setSlides(result.slides)
+      }
+    } catch (error) {
+      console.error("Error loading wrapped:", error)
+      Alert.alert("Error", "Failed to load wrapped data. Please try again.")
+      router.back()
+    } finally {
+      setIsLoading(false)
+    }
   }, [])
+
+  useFocusEffect(
+    useCallback(() => {
+      loadWrapped()
+    }, [loadWrapped]),
+  )
 
   const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const offsetX = event.nativeEvent.contentOffset.x
@@ -86,6 +93,48 @@ export const WrappedScreen: FC = function WrappedScreen() {
 
   const handleClose = () => {
     router.back()
+  }
+
+  const handleShare = async () => {
+    try {
+      const summarySlide = slides.find((s) => s.type === "summary")
+      const statsSlide = slides.find((s) => s.type === "howdYouDo")
+      if (!summarySlide) return
+
+      let message = `🎱 My 2025 APA Wrapped!\n\n`
+
+      // Add stats
+      if (statsSlide) {
+        message += `📊 Record: ${statsSlide.wins}-${statsSlide.losses}\n`
+        message += `🔥 Best Streak: ${statsSlide.longestWinStreak}\n`
+        message += `📈 Starting SL: ${statsSlide.startingSkill}\n`
+        message += `🎯 Ending SL: ${statsSlide.endingSkill}\n\n`
+      }
+
+      // Get top archetype from archetype slide
+      const archetypeSlide = slides.find((s) => s.type === "archetype")
+      if (archetypeSlide && archetypeSlide.top5 && archetypeSlide.top5.length > 0) {
+        const topArchetype = archetypeSlide.top5[0]
+        const display = topArchetype.display || topArchetype.description
+        message += `🎭 My Archetype: ${topArchetype.name}\n${display}\n\n`
+      }
+
+      if (summarySlide.top3Highlights && summarySlide.top3Highlights.length > 0) {
+        message += `✨ Highlights:\n`
+        summarySlide.top3Highlights.forEach((highlight: string) => {
+          message += `• ${highlight}\n`
+        })
+        message += `\n`
+      }
+
+      message += `Get yours with the On The Hill app! 🎱`
+
+      await Share.share({
+        message,
+      })
+    } catch (error) {
+      console.error("Error sharing:", error)
+    }
   }
 
   const getPositionOrdinal = (position: number): string => {
@@ -129,11 +178,17 @@ export const WrappedScreen: FC = function WrappedScreen() {
                     <View style={themed($statsGroup)}>
                       <View style={themed($statRow)}>
                         <Text style={themed($statLabel)} text="Record" />
-                        <Text style={themed($statValue)} text={`${slide.wins}W - ${slide.losses}L`} />
+                        <Text
+                          style={themed($statValue)}
+                          text={`${slide.wins}W - ${slide.losses}L`}
+                        />
                       </View>
                       <View style={themed($statRow)}>
                         <Text style={themed($statLabel)} text="Longest Streak" />
-                        <Text style={themed($statValue)} text={`${slide.longestWinStreak} matches`} />
+                        <Text
+                          style={themed($statValue)}
+                          text={`${slide.longestWinStreak} matches`}
+                        />
                       </View>
                     </View>
                     <View style={themed($divider)} />
@@ -226,7 +281,7 @@ export const WrappedScreen: FC = function WrappedScreen() {
               showsVerticalScrollIndicator={false}
             >
               <Text style={themed($slideEmoji)} text="📍" />
-              <Text style={themed($slideTitle)} text="Happy Place" />
+              <Text style={themed($slideTitle)} text="Your Time and Place" />
               {slide.bestLocations && slide.bestLocations.length > 0 && (
                 <Card
                   style={themed($mainCard)}
@@ -302,10 +357,7 @@ export const WrappedScreen: FC = function WrappedScreen() {
                               style={themed($listItemTitle)}
                               text={`Shooting ${getPositionOrdinal(slide.bestPosition.position)}`}
                             />
-                            <Text
-                              style={themed($listItemSubtitle)}
-                              text="Best"
-                            />
+                            <Text style={themed($listItemSubtitle)} text="Best" />
                           </View>
                           <Text
                             style={themed($listItemValue)}
@@ -320,10 +372,7 @@ export const WrappedScreen: FC = function WrappedScreen() {
                               style={themed($listItemTitle)}
                               text={`Shooting ${getPositionOrdinal(slide.worstPosition.position)}`}
                             />
-                            <Text
-                              style={themed($listItemSubtitle)}
-                              text="Worst"
-                            />
+                            <Text style={themed($listItemSubtitle)} text="Worst" />
                           </View>
                           <Text
                             style={themed($listItemValue)}
@@ -347,7 +396,7 @@ export const WrappedScreen: FC = function WrappedScreen() {
               showsVerticalScrollIndicator={false}
             >
               <Text style={themed($slideEmoji)} text="⚔️" />
-              <Text style={themed($slideTitle)} text="Rivals" />
+              <Text style={themed($slideTitle)} text="Your Rivals" />
               {slide.mostPlayed && slide.mostPlayed.length > 0 && (
                 <Card
                   style={themed($mainCard)}
@@ -502,14 +551,8 @@ export const WrappedScreen: FC = function WrappedScreen() {
                       {slide.top5.map((arch: any, i: number) => (
                         <View key={i} style={themed([i < slide.top5.length - 1 && $archetypeItem])}>
                           <Text style={themed($archetypeName)} text={arch.name} />
-                          <Text
-                            style={themed($archetypeDescription)}
-                            text={arch.description}
-                          />
-                          <Text
-                            style={themed($archetypeExplanation)}
-                            text={arch.explanation}
-                          />
+                          <Text style={themed($archetypeDescription)} text={arch.description} />
+                          <Text style={themed($archetypeExplanation)} text={arch.explanation} />
                         </View>
                       ))}
                     </View>
@@ -520,7 +563,17 @@ export const WrappedScreen: FC = function WrappedScreen() {
           </View>
         )
 
-      case "summary":
+      case "summary": {
+        // Get top archetype from archetype slide
+        const archetypeSlide = slides.find((s) => s.type === "archetype")
+        const topArchetype =
+          archetypeSlide && archetypeSlide.top5 && archetypeSlide.top5.length > 0
+            ? archetypeSlide.top5[0]
+            : null
+
+        // Get stats from howdYouDo slide
+        const statsSlide = slides.find((s) => s.type === "howdYouDo")
+
         return (
           <View key={index} style={themed($slideContainer)}>
             <ScrollView
@@ -529,41 +582,103 @@ export const WrappedScreen: FC = function WrappedScreen() {
             >
               <Text style={themed($slideEmoji)} text="🎉" />
               <Text style={themed($slideTitle)} text="Thanks for Playing!" />
-              {slide.top3Highlights && slide.top3Highlights.length > 0 && (
-                <Card
-                  style={themed($mainCard)}
-                  ContentComponent={
-                    <View style={themed($cardInner)}>
-                      <Text style={themed($sectionLabel)} text="Top Highlights" />
-                      {slide.top3Highlights.map((highlight: string, i: number) => (
-                        <View
-                          key={i}
-                          style={themed([
-                            $listItem,
-                            i < slide.top3Highlights.length - 1 && $listItemBorder,
-                          ])}
-                        >
-                          <Text style={themed($highlightText)} text={highlight} />
+
+              {/* Shareable Summary Card */}
+              <Card
+                style={themed($summaryCard)}
+                ContentComponent={
+                  <View style={themed($summaryCardInner)}>
+                    {/* Title */}
+                    <Text style={themed($summaryCardTitle)} text="My 2025 APA Wrapped" />
+
+                    {/* Stats Grid - 2 Columns */}
+                    {statsSlide && (
+                      <View style={themed($summaryGrid)}>
+                        <View style={themed($summaryGridItem)}>
+                          <View style={themed($summaryGridHeader)}>
+                            <Text style={themed($summaryGridEmoji)} text="📊" />
+                            <Text style={themed($summaryGridLabel)} text="Record" />
+                          </View>
+                          <Text
+                            style={themed($summaryGridValue)}
+                            text={`${statsSlide.wins}-${statsSlide.losses}`}
+                          />
                         </View>
-                      ))}
+                        <View style={themed($summaryGridItem)}>
+                          <View style={themed($summaryGridHeader)}>
+                            <Text style={themed($summaryGridEmoji)} text="🔥" />
+                            <Text style={themed($summaryGridLabel)} text="Best Streak" />
+                          </View>
+                          <Text
+                            style={themed($summaryGridValue)}
+                            text={`${statsSlide.longestWinStreak}`}
+                          />
+                        </View>
+                        <View style={themed($summaryGridItem)}>
+                          <View style={themed($summaryGridHeader)}>
+                            <Text style={themed($summaryGridEmoji)} text="📈" />
+                            <Text style={themed($summaryGridLabel)} text="Starting SL" />
+                          </View>
+                          <Text
+                            style={themed($summaryGridValue)}
+                            text={`${statsSlide.startingSkill}`}
+                          />
+                        </View>
+                        <View style={themed($summaryGridItem)}>
+                          <View style={themed($summaryGridHeader)}>
+                            <Text style={themed($summaryGridEmoji)} text="🎯" />
+                            <Text style={themed($summaryGridLabel)} text="Ending SL" />
+                          </View>
+                          <Text
+                            style={themed($summaryGridValue)}
+                            text={`${statsSlide.endingSkill}`}
+                          />
+                        </View>
+                      </View>
+                    )}
+
+                    {/* Top Archetype */}
+                    {topArchetype && (
+                      <View style={themed($summaryArchetypeSection)}>
+                        <View style={themed($summaryArchetypeHeader)}>
+                          <Text style={themed($summaryArchetypeEmoji)} text="🎭" />
+                          <Text style={themed($summaryArchetypeTitle)} text="Your Archetype" />
+                        </View>
+                        <Text style={themed($summaryArchetypeName)} text={topArchetype.name} />
+                        <Text
+                          style={themed($summaryArchetypeDesc)}
+                          text={topArchetype.explanation || topArchetype.description}
+                        />
+                      </View>
+                    )}
+
+                    {/* Top Highlights */}
+                    {slide.top3Highlights && slide.top3Highlights.length > 0 && (
+                      <View style={themed($summaryHighlightsSection)}>
+                        <View style={themed($summaryHighlightsHeader)}>
+                          <Text style={themed($summaryHighlightsEmoji)} text="✨" />
+                          <Text style={themed($summaryHighlightsTitle)} text="Highlights" />
+                        </View>
+                        {slide.top3Highlights.map((highlight: string, i: number) => (
+                          <Text key={i} style={themed($summaryHighlight)} text={`• ${highlight}`} />
+                        ))}
+                      </View>
+                    )}
+
+                    {/* Footer */}
+                    <View style={themed($summaryFooter)}>
+                      <Text
+                        style={themed($summaryFooterText)}
+                        text={`Get yours with the "On The Hill" app! 🎱`}
+                      />
                     </View>
-                  }
-                />
-              )}
-              {slide.funStat && (
-                <Card
-                  style={themed($mainCard)}
-                  ContentComponent={
-                    <View style={themed($cardInner)}>
-                      <Text style={themed($sectionLabel)} text="Fun Stat" />
-                      <Text style={themed($funStatText)} text={slide.funStat} />
-                    </View>
-                  }
-                />
-              )}
+                  </View>
+                }
+              />
             </ScrollView>
           </View>
         )
+      }
 
       default:
         return null
@@ -620,7 +735,13 @@ export const WrappedScreen: FC = function WrappedScreen() {
         </View>
 
         {currentSlide === slides.length - 1 && (
-          <View style={themed($buttonContainer)}>
+          <View style={themed($fixedButtonsContainer)}>
+            <Button
+              text="Share"
+              onPress={handleShare}
+              style={themed($fixedShareButton)}
+              textStyle={themed($fixedShareButtonText)}
+            />
             <Button
               text="Bye now!"
               onPress={handleClose}
@@ -652,36 +773,6 @@ const $loadingText: ThemedStyle<TextStyle> = ({ colors }) => ({
   fontSize: 18,
   color: colors.textDim,
   textAlign: "center",
-})
-
-const $headerContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
-  flexDirection: "row",
-  justifyContent: "space-between",
-  alignItems: "center",
-  paddingHorizontal: spacing.lg,
-  paddingTop: spacing.md,
-  paddingBottom: spacing.sm,
-})
-
-const $headerText: ThemedStyle<TextStyle> = ({ colors }) => ({
-  fontSize: 14,
-  fontWeight: "600",
-  color: colors.textDim,
-})
-
-const $closeButton: ThemedStyle<ViewStyle> = ({ colors }) => ({
-  backgroundColor: colors.palette.neutral200,
-  borderRadius: 20,
-  width: 40,
-  height: 40,
-  justifyContent: "center",
-  alignItems: "center",
-  padding: 0,
-})
-
-const $closeButtonText: ThemedStyle<TextStyle> = () => ({
-  fontSize: 18,
-  lineHeight: 20,
 })
 
 const $scrollView: ThemedStyle<ViewStyle> = () => ({
@@ -863,13 +954,6 @@ const $listItemValue: ThemedStyle<TextStyle> = ({ colors }) => ({
   flexShrink: 0,
 })
 
-const $archetypeHeader: ThemedStyle<ViewStyle> = ({ spacing }) => ({
-  flexDirection: "row",
-  justifyContent: "space-between",
-  alignItems: "center",
-  marginBottom: spacing.sm,
-})
-
 const $archetypeItem: ThemedStyle<ViewStyle> = ({ spacing }) => ({
   marginBottom: spacing.lg,
   paddingBottom: spacing.lg,
@@ -886,13 +970,6 @@ const $archetypeName: ThemedStyle<TextStyle> = ({ colors, spacing }) => ({
   flexShrink: 1,
 })
 
-const $archetypeScore: ThemedStyle<TextStyle> = ({ colors }) => ({
-  fontSize: 24,
-  fontWeight: "900",
-  color: colors.palette.primary500,
-  flexShrink: 0,
-})
-
 const $archetypeDescription: ThemedStyle<TextStyle> = ({ colors, spacing }) => ({
   fontSize: 15,
   fontWeight: "600",
@@ -906,22 +983,6 @@ const $archetypeExplanation: ThemedStyle<TextStyle> = ({ colors }) => ({
   fontWeight: "400",
   color: colors.textDim,
   lineHeight: 20,
-  flexWrap: "wrap",
-})
-
-const $highlightText: ThemedStyle<TextStyle> = ({ colors }) => ({
-  fontSize: 15,
-  fontWeight: "600",
-  color: colors.text,
-  lineHeight: 22,
-  flexWrap: "wrap",
-})
-
-const $funStatText: ThemedStyle<TextStyle> = ({ colors }) => ({
-  fontSize: 16,
-  fontWeight: "600",
-  color: colors.palette.primary500,
-  lineHeight: 23,
   flexWrap: "wrap",
 })
 
@@ -951,12 +1012,6 @@ const $dotActive: ThemedStyle<ViewStyle> = ({ colors }) => ({
   width: 24,
 })
 
-const $buttonContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
-  justifyContent: "center",
-  alignItems: "center",
-  marginTop: spacing.md,
-})
-
 const $doneButton: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
   borderRadius: 24,
   backgroundColor: colors.palette.primary100,
@@ -970,5 +1025,185 @@ const $doneButtonText: ThemedStyle<TextStyle> = ({ colors }) => ({
   lineHeight: 24,
   textAlignVertical: "center",
   color: colors.palette.primary500,
+  fontWeight: "600",
+})
+
+// Summary Card Styles
+const $summaryCard: ThemedStyle<ViewStyle> = ({ spacing, colors }) => ({
+  width: "100%",
+  marginBottom: spacing.md,
+  padding: 0,
+  minHeight: 0,
+  backgroundColor: colors.palette.neutral100,
+  borderRadius: 16,
+  shadowColor: "#000",
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.08,
+  shadowRadius: 8,
+  elevation: 3,
+})
+
+const $summaryCardInner: ThemedStyle<ViewStyle> = ({ spacing }) => ({
+  padding: spacing.lg,
+  gap: spacing.sm,
+})
+
+const $summaryCardTitle: ThemedStyle<TextStyle> = ({ colors, spacing }) => ({
+  fontSize: 20,
+  fontWeight: "900",
+  color: colors.text,
+  textAlign: "center",
+  marginBottom: spacing.xs,
+})
+
+const $summaryGrid: ThemedStyle<ViewStyle> = ({ spacing }) => ({
+  flexDirection: "row",
+  flexWrap: "wrap",
+  gap: spacing.sm,
+  width: "100%",
+})
+
+const $summaryGridItem: ThemedStyle<ViewStyle> = ({ spacing, colors }) => ({
+  flex: 1,
+  minWidth: "45%",
+  backgroundColor: colors.background,
+  borderRadius: 12,
+  padding: spacing.sm,
+  alignItems: "center",
+  gap: spacing.xxs,
+})
+
+const $summaryGridHeader: ThemedStyle<ViewStyle> = ({ spacing }) => ({
+  flexDirection: "row",
+  alignItems: "center",
+  gap: spacing.xxs,
+})
+
+const $summaryGridEmoji: ThemedStyle<TextStyle> = () => ({
+  fontSize: 16,
+  lineHeight: 20,
+})
+
+const $summaryGridLabel: ThemedStyle<TextStyle> = ({ colors }) => ({
+  fontSize: 11,
+  fontWeight: "600",
+  color: colors.textDim,
+})
+
+const $summaryGridValue: ThemedStyle<TextStyle> = ({ colors }) => ({
+  fontSize: 18,
+  fontWeight: "900",
+  color: colors.palette.primary500,
+  textAlign: "center",
+})
+
+const $summaryArchetypeSection: ThemedStyle<ViewStyle> = ({ spacing, colors }) => ({
+  width: "100%",
+  backgroundColor: colors.background,
+  borderRadius: 12,
+  padding: spacing.sm,
+  gap: spacing.xxs,
+})
+
+const $summaryArchetypeHeader: ThemedStyle<ViewStyle> = ({ spacing }) => ({
+  flexDirection: "row",
+  alignItems: "center",
+  gap: spacing.xxs,
+  marginBottom: spacing.xxs,
+})
+
+const $summaryArchetypeEmoji: ThemedStyle<TextStyle> = () => ({
+  fontSize: 16,
+  lineHeight: 20,
+})
+
+const $summaryArchetypeTitle: ThemedStyle<TextStyle> = ({ colors }) => ({
+  fontSize: 11,
+  fontWeight: "700",
+  color: colors.palette.primary500,
+})
+
+const $summaryArchetypeName: ThemedStyle<TextStyle> = ({ colors }) => ({
+  fontSize: 14,
+  fontWeight: "900",
+  color: colors.text,
+})
+
+const $summaryArchetypeDesc: ThemedStyle<TextStyle> = ({ colors }) => ({
+  fontSize: 11,
+  fontWeight: "500",
+  color: colors.textDim,
+  lineHeight: 15,
+})
+
+const $summaryHighlightsSection: ThemedStyle<ViewStyle> = ({ spacing, colors }) => ({
+  width: "100%",
+  backgroundColor: colors.background,
+  borderRadius: 12,
+  padding: spacing.sm,
+  gap: spacing.xxs,
+})
+
+const $summaryHighlightsHeader: ThemedStyle<ViewStyle> = ({ spacing }) => ({
+  flexDirection: "row",
+  alignItems: "center",
+  gap: spacing.xxs,
+  marginBottom: spacing.xxs,
+})
+
+const $summaryHighlightsEmoji: ThemedStyle<TextStyle> = () => ({
+  fontSize: 16,
+  lineHeight: 20,
+})
+
+const $summaryHighlightsTitle: ThemedStyle<TextStyle> = ({ colors }) => ({
+  fontSize: 11,
+  fontWeight: "700",
+  color: colors.palette.primary500,
+})
+
+const $summaryHighlight: ThemedStyle<TextStyle> = ({ colors }) => ({
+  fontSize: 11,
+  fontWeight: "500",
+  color: colors.text,
+  lineHeight: 15,
+})
+
+const $summaryFooter: ThemedStyle<ViewStyle> = ({ spacing, colors }) => ({
+  width: "100%",
+  paddingTop: spacing.sm,
+  borderTopWidth: 1,
+  borderTopColor: colors.palette.neutral300,
+  alignItems: "center",
+})
+
+const $summaryFooterText: ThemedStyle<TextStyle> = ({ colors }) => ({
+  fontSize: 10,
+  fontWeight: "600",
+  color: colors.textDim,
+  textAlign: "center",
+})
+
+const $fixedButtonsContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
+  flexDirection: "row",
+  justifyContent: "center",
+  alignItems: "center",
+  gap: spacing.md,
+  marginTop: spacing.md,
+})
+
+const $fixedShareButton: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
+  borderRadius: 24,
+  backgroundColor: colors.palette.primary500,
+  paddingVertical: spacing.md,
+  paddingHorizontal: spacing.xl,
+  minWidth: 120,
+})
+
+const $fixedShareButtonText: ThemedStyle<TextStyle> = ({ colors }) => ({
+  fontSize: 18,
+  lineHeight: 24,
+  textAlignVertical: "center",
+  color: colors.palette.neutral100,
   fontWeight: "600",
 })
