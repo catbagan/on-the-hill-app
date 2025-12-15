@@ -992,7 +992,7 @@ const $footerContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
 })
 
 const $footerContainerSummary: ThemedStyle<ViewStyle> = () => ({
-  marginTop: 160,
+  // marginTop: 160,
 })
 
 const $dotsContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
