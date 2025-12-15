@@ -1,5 +1,13 @@
-import { FC, useState, useEffect } from "react"
-import { ActivityIndicator, Alert, ScrollView, TextStyle, TouchableOpacity, View, ViewStyle } from "react-native"
+import { FC, useState, useEffect, useRef } from "react"
+import {
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  TextStyle,
+  TouchableOpacity,
+  View,
+  ViewStyle,
+} from "react-native"
 import { useLocalSearchParams } from "expo-router"
 import { Ionicons } from "@expo/vector-icons"
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons"
@@ -12,6 +20,7 @@ import { TextField } from "@/components/TextField"
 import { playerApi, PlayerSearchResponse, reportApi } from "@/services/api/requests"
 import { useAppTheme } from "@/theme/context"
 import type { ThemedStyle } from "@/theme/types"
+import { getCurrentUser } from "@/utils/storage/authStorage"
 import {
   storePlayers,
   getStoredPlayers,
@@ -24,7 +33,6 @@ import {
   clearPlayerCache,
   type PlayerStats,
 } from "@/utils/storage/statsStorage"
-import { getCurrentUser } from "@/utils/storage/authStorage"
 
 interface SortOption {
   value: string
@@ -86,6 +94,7 @@ const SortableCard = <T extends Record<string, any>>({
 export const StatsScreen: FC = function StatsScreen() {
   const { themed } = useAppTheme()
   const params = useLocalSearchParams<{ autoSearch?: string }>()
+  const scrollViewRef = useRef<ScrollView>(null)
   const [playerName, setPlayerName] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
@@ -114,6 +123,15 @@ export const StatsScreen: FC = function StatsScreen() {
   const [positionSort, setPositionSort] = useState<
     "position-asc" | "position-desc" | "winrate-asc" | "winrate-desc"
   >("position-asc")
+  const [inningsSort, setInningsSort] = useState<
+    "innings-asc" | "innings-desc" | "winrate-asc" | "winrate-desc"
+  >("innings-asc")
+  const [teamSituationSort, setTeamSituationSort] = useState<
+    "name-asc" | "name-desc" | "winrate-asc" | "winrate-desc"
+  >("name-asc")
+  const [scoreSort, setScoreSort] = useState<
+    "score-asc" | "score-desc" | "count-asc" | "count-desc"
+  >("score-asc")
   const [playerSearchResult, setPlayerSearchResult] = useState<PlayerSearchResponse | null>(null)
   const [showConfirmation, setShowConfirmation] = useState<boolean>(false)
   const [showEditView, setShowEditView] = useState<boolean>(false)
@@ -158,20 +176,24 @@ export const StatsScreen: FC = function StatsScreen() {
       const seasons = Object.keys(currentPlayer.bySeason || {}).sort((a, b) => {
         const [seasonA, yearA] = a.split(" ")
         const [seasonB, yearB] = b.split(" ")
-        const seasonOrder = { "Fall": 0, "Summer": 1, "Spring": 2, "Winter": 3 }
-        
+        const seasonOrder = { Fall: 0, Summer: 1, Spring: 2, Winter: 3 }
+
         if (yearA !== yearB) {
           return parseInt(yearB) - parseInt(yearA)
         }
-        return (seasonOrder[seasonA as keyof typeof seasonOrder] ?? 4) - (seasonOrder[seasonB as keyof typeof seasonOrder] ?? 4)
+        return (
+          (seasonOrder[seasonA as keyof typeof seasonOrder] ?? 4) -
+          (seasonOrder[seasonB as keyof typeof seasonOrder] ?? 4)
+        )
       })
-      
+
       setAvailableSeasons(seasons)
       setSelectedSeason("all")
     } else {
       setAvailableSeasons([])
       setSelectedSeason("all")
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPlayerIndex])
 
   // Fetch report when season selection changes
@@ -179,49 +201,49 @@ export const StatsScreen: FC = function StatsScreen() {
     const fetchSeasonReport = async () => {
       if (selectedPlayerIndex < 0 || !players[selectedPlayerIndex]) return
       if (isLoading) return // Don't fetch if already loading
-      
+
       const currentPlayer = players[selectedPlayerIndex]
-      
+
       // Try to find the player's member ID by searching
       setIsLoading(true)
-      
+
       try {
         const searchResult = await playerApi.search({ name: currentPlayer.name })
-        
+
         if (!searchResult.player) {
           console.log("Could not find player member ID for season filter")
           setIsLoading(false)
           return
         }
-        
+
         const memberId = searchResult.player.memberNumber
         const seasonKey = selectedSeason !== "all" ? selectedSeason : undefined
-        
+
         // Check cache first
         let reportResult = getCachedReport(memberId, seasonKey)
-        
+
         if (reportResult) {
           console.log("Using cached report for season:", selectedSeason)
         } else {
           console.log("Fetching report for season:", selectedSeason)
           const seasonsFilter = seasonKey ? [seasonKey] : undefined
-          reportResult = await reportApi.get({ 
+          reportResult = await reportApi.get({
             memberId,
             seasons: seasonsFilter,
           })
-          
+
           if (reportResult && !reportResult.error && reportResult.report) {
             // Cache the result
             cacheReport(memberId, seasonKey, reportResult)
           }
         }
-        
+
         if (!reportResult || reportResult.error || !reportResult.report) {
           console.error("Failed to fetch season report:", reportResult?.error)
           setIsLoading(false)
           return
         }
-        
+
         // Update player stats with filtered data
         const updatedPlayerStats: PlayerStats = {
           name: currentPlayer.name,
@@ -247,19 +269,19 @@ export const StatsScreen: FC = function StatsScreen() {
           last10Matches: reportResult.report.last10Matches,
           trending: reportResult.report.trending,
         }
-        
+
         const updatedPlayers = [...players]
         updatedPlayers[selectedPlayerIndex] = updatedPlayerStats
         setPlayers(updatedPlayers)
-        
       } catch (error) {
         console.error("Error fetching season report:", error)
       } finally {
         setIsLoading(false)
       }
     }
-    
+
     fetchSeasonReport()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSeason])
 
   // Auto-search for player name if provided via route params (e.g., after signup)
@@ -271,7 +293,7 @@ export const StatsScreen: FC = function StatsScreen() {
           setHasAutoSearched(true)
           setPlayerName(nameToSearch)
           setShowInputForm(true)
-          
+
           // Trigger the search automatically
           setIsLoading(true)
           setError("")
@@ -367,7 +389,7 @@ export const StatsScreen: FC = function StatsScreen() {
       Alert.alert(
         "Player Limit Reached",
         "You can only show stats for up to 3 players. Delete one first.",
-        [{ text: "OK" }]
+        [{ text: "OK" }],
       )
       return
     }
@@ -414,14 +436,14 @@ export const StatsScreen: FC = function StatsScreen() {
 
       // Clear all cached reports for this player
       clearPlayerCache(searchResult.player.memberNumber)
-      
+
       // Request full report without season filter
-      const reportResult = await reportApi.get({ 
+      const reportResult = await reportApi.get({
         memberId: searchResult.player.memberNumber,
         seasons: undefined, // Get all data
       })
       console.log("📊 Report result:", reportResult)
-      
+
       // Cache the full report
       if (reportResult && !reportResult.error && reportResult.report) {
         cacheReport(searchResult.player.memberNumber, undefined, reportResult)
@@ -468,14 +490,17 @@ export const StatsScreen: FC = function StatsScreen() {
       const seasons = Object.keys(updatedPlayerStats.bySeason || {}).sort((a, b) => {
         const [seasonA, yearA] = a.split(" ")
         const [seasonB, yearB] = b.split(" ")
-        const seasonOrder = { "Fall": 0, "Summer": 1, "Spring": 2, "Winter": 3 }
-        
+        const seasonOrder = { Fall: 0, Summer: 1, Spring: 2, Winter: 3 }
+
         if (yearA !== yearB) {
           return parseInt(yearB) - parseInt(yearA)
         }
-        return (seasonOrder[seasonA as keyof typeof seasonOrder] ?? 4) - (seasonOrder[seasonB as keyof typeof seasonOrder] ?? 4)
+        return (
+          (seasonOrder[seasonA as keyof typeof seasonOrder] ?? 4) -
+          (seasonOrder[seasonB as keyof typeof seasonOrder] ?? 4)
+        )
       })
-      
+
       setAvailableSeasons(seasons)
       setSelectedSeason("all")
 
@@ -528,7 +553,7 @@ export const StatsScreen: FC = function StatsScreen() {
       Alert.alert(
         "Player Limit Reached",
         "You can only show stats for up to 3 players. Delete one first.",
-        [{ text: "OK" }]
+        [{ text: "OK" }],
       )
       setIsLoading(false)
       return
@@ -539,15 +564,20 @@ export const StatsScreen: FC = function StatsScreen() {
     try {
       const seasonsFilter = selectedSeason !== "all" ? [selectedSeason] : undefined
       const seasonKey = seasonsFilter?.[0]
-      
+
       // Check cache first
       let reportResult = getCachedReport(playerSearchResult.player.memberNumber, seasonKey)
-      
+
       if (reportResult) {
-        console.log("Using cached report for player:", playerSearchResult.player.memberNumber, "season:", seasonKey || "all")
+        console.log(
+          "Using cached report for player:",
+          playerSearchResult.player.memberNumber,
+          "season:",
+          seasonKey || "all",
+        )
       } else {
         console.log("Fetching fresh report from API")
-        reportResult = await reportApi.get({ 
+        reportResult = await reportApi.get({
           memberId: playerSearchResult.player.memberNumber,
           seasons: seasonsFilter,
         })
@@ -608,15 +638,18 @@ export const StatsScreen: FC = function StatsScreen() {
         // Parse season strings like "Fall 2025", "Summer 2025", etc.
         const [seasonA, yearA] = a.split(" ")
         const [seasonB, yearB] = b.split(" ")
-        const seasonOrder = { "Fall": 0, "Summer": 1, "Spring": 2, "Winter": 3 }
-        
+        const seasonOrder = { Fall: 0, Summer: 1, Spring: 2, Winter: 3 }
+
         // Sort by year first (descending), then by season
         if (yearA !== yearB) {
           return parseInt(yearB) - parseInt(yearA)
         }
-        return (seasonOrder[seasonA as keyof typeof seasonOrder] ?? 4) - (seasonOrder[seasonB as keyof typeof seasonOrder] ?? 4)
+        return (
+          (seasonOrder[seasonA as keyof typeof seasonOrder] ?? 4) -
+          (seasonOrder[seasonB as keyof typeof seasonOrder] ?? 4)
+        )
       })
-      
+
       setAvailableSeasons(seasons)
       setSelectedSeason("all") // Default to "all"
 
@@ -642,10 +675,6 @@ export const StatsScreen: FC = function StatsScreen() {
     }
   }
 
-  const handleSelectPlayer = (index: number) => {
-    setSelectedPlayerIndex(index)
-  }
-
   const handleGameTypeSelect = (type: "8ball" | "9ball") => {
     if (type === "9ball") {
       Alert.alert("Coming Soon", "9 Ball stats coming soon!")
@@ -654,8 +683,30 @@ export const StatsScreen: FC = function StatsScreen() {
     setGameType(type)
   }
 
+  const resetSorters = () => {
+    setHeadToHeadSort("name-asc")
+    setMySkillSort("skill-asc")
+    setOppSkillSort("skill-asc")
+    setSkillDiffSort("diff-asc")
+    setLocationSort("name-asc")
+    setPositionSort("position-asc")
+    setInningsSort("innings-asc")
+    setTeamSituationSort("name-asc")
+    setScoreSort("score-asc")
+  }
+
   const handleSelectSeason = (season: string) => {
     setSelectedSeason(season)
+    resetSorters()
+    scrollViewRef.current?.scrollTo({ y: 0, animated: true })
+  }
+
+  const handleSelectPlayer = (index: number) => {
+    setSelectedPlayerIndex(index)
+    storeSelectedPlayerIndex(index)
+    setSelectedSeason("all")
+    resetSorters()
+    scrollViewRef.current?.scrollTo({ y: 0, animated: true })
   }
 
   // View 1: Player Name Input (when no players exist or adding new player)
@@ -719,11 +770,15 @@ export const StatsScreen: FC = function StatsScreen() {
                       onPress={handleConfirmPlayer}
                       style={themed([
                         $primaryButton,
-                        !(userEmail === "daniel@catbagan.me") && players.length >= 3 && $primaryButtonDisabled,
+                        !(userEmail === "daniel@catbagan.me") &&
+                          players.length >= 3 &&
+                          $primaryButtonDisabled,
                       ])}
                       textStyle={themed([
                         $primaryButtonText,
-                        !(userEmail === "daniel@catbagan.me") && players.length >= 3 && $primaryButtonTextDisabled,
+                        !(userEmail === "daniel@catbagan.me") &&
+                          players.length >= 3 &&
+                          $primaryButtonTextDisabled,
                       ])}
                       disabled={isLoading}
                       RightAccessory={
@@ -890,7 +945,6 @@ export const StatsScreen: FC = function StatsScreen() {
   return (
     <Screen preset="fixed" contentContainerStyle={themed($contentContainer)}>
       <View style={themed($headerContainer)}>
-
         <View style={themed($tabsContainer)}>
           <View style={themed($playerRowContainer)}>
             <TouchableOpacity
@@ -904,7 +958,9 @@ export const StatsScreen: FC = function StatsScreen() {
                 name="add-circle-outline"
                 size={20}
                 color={
-                  !(userEmail === "daniel@catbagan.me") && players.length >= 3 ? "#999999" : "#000000"
+                  !(userEmail === "daniel@catbagan.me") && players.length >= 3
+                    ? "#999999"
+                    : "#000000"
                 }
               />
             </TouchableOpacity>
@@ -990,10 +1046,7 @@ export const StatsScreen: FC = function StatsScreen() {
                 contentContainerStyle={themed($seasonScrollContainer)}
               >
                 <TouchableOpacity
-                  style={themed([
-                    $seasonToggle,
-                    selectedSeason === "all" && $seasonToggleActive,
-                  ])}
+                  style={themed([$seasonToggle, selectedSeason === "all" && $seasonToggleActive])}
                   onPress={() => handleSelectSeason("all")}
                 >
                   <Text
@@ -1037,7 +1090,7 @@ export const StatsScreen: FC = function StatsScreen() {
         )}
         <View style={themed($statsContainer)}>
           {activeTab === "overall" && (
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView ref={scrollViewRef} showsVerticalScrollIndicator={false}>
               {/* Overall Stats */}
               <Card
                 style={themed($overallStatCard)}
@@ -1147,6 +1200,154 @@ export const StatsScreen: FC = function StatsScreen() {
                         return winRateB - winRateA
                       default:
                         return positionA.localeCompare(positionB)
+                    }
+                  }}
+                />
+              )}
+
+              {/* Score Distribution */}
+              {Object.keys(selectedPlayer.scoreDistribution || {}).length > 0 && (
+                <SortableCard
+                  heading="Score Distribution"
+                  data={selectedPlayer.scoreDistribution}
+                  sortState={scoreSort}
+                  onSortChange={setScoreSort}
+                  renderItem={([score, count]) => (
+                    <View key={score} style={themed($statRow)}>
+                      <Text style={themed($statLabel)} text={score} />
+                      <View style={themed($statValues)}>
+                        <Text style={themed($winPercentText)} text={`${count} matches`} />
+                      </View>
+                    </View>
+                  )}
+                  sortOptions={[
+                    { value: "score-asc", label: "Score" },
+                    { value: "count-asc", label: "Count ↑" },
+                    { value: "count-desc", label: "Count ↓" },
+                  ]}
+                  sortFunction={(a, b, sortType) => {
+                    const [scoreA, countA] = a
+                    const [scoreB, countB] = b
+
+                    if (sortType === "count-asc") {
+                      return countA - countB
+                    }
+                    if (sortType === "count-desc") {
+                      return countB - countA
+                    }
+
+                    // Default: Sort by score (your score desc, then opponent score asc)
+                    // Parse scores like "3-0", "2-1", etc.
+                    const [yourScoreA, oppScoreA] = scoreA.split("-").map((n) => parseInt(n))
+                    const [yourScoreB, oppScoreB] = scoreB.split("-").map((n) => parseInt(n))
+
+                    // Sort by your score descending first
+                    if (yourScoreA !== yourScoreB) {
+                      return yourScoreB - yourScoreA
+                    }
+                    // Then by opponent score ascending
+                    return oppScoreA - oppScoreB
+                  }}
+                />
+              )}
+
+              {/* By Innings */}
+              {Object.keys(selectedPlayer.byInnings || {}).length > 0 && (
+                <SortableCard
+                  heading="By Innings"
+                  data={selectedPlayer.byInnings}
+                  sortState={inningsSort}
+                  onSortChange={setInningsSort}
+                  renderItem={([innings, stats]) => (
+                    <View key={innings} style={themed($statRow)}>
+                      <Text style={themed($statLabel)} text={innings} />
+                      <View style={themed($statValues)}>
+                        <Text style={themed($winText)} text={`${stats.wins}W`} />
+                        <Text style={themed($lossText)} text={`${stats.losses}L`} />
+                        <Text
+                          style={themed($winPercentText)}
+                          text={`(${Math.round((stats.wins / (stats.wins + stats.losses)) * 100)}%)`}
+                        />
+                      </View>
+                    </View>
+                  )}
+                  sortOptions={[
+                    { value: "innings-asc", label: "Innings ↑" },
+                    { value: "innings-desc", label: "Innings ↓" },
+                    { value: "winrate-asc", label: "Win % ↑" },
+                    { value: "winrate-desc", label: "Win % ↓" },
+                  ]}
+                  sortFunction={(a, b, sortType) => {
+                    const [inningsA, statsA] = a
+                    const [inningsB, statsB] = b
+                    const winRateA = statsA.wins / (statsA.wins + statsA.losses)
+                    const winRateB = statsB.wins / (statsB.wins + statsB.losses)
+
+                    switch (sortType) {
+                      case "innings-asc":
+                        return parseInt(inningsA) - parseInt(inningsB)
+                      case "innings-desc":
+                        return parseInt(inningsB) - parseInt(inningsA)
+                      case "winrate-asc":
+                        return winRateA - winRateB
+                      case "winrate-desc":
+                        return winRateB - winRateA
+                      default:
+                        return parseInt(inningsA) - parseInt(inningsB)
+                    }
+                  }}
+                />
+              )}
+
+              {/* By Team Situation */}
+              {Object.keys(selectedPlayer.byTeamSituation || {}).length > 0 && (
+                <SortableCard
+                  heading="By Team Situation"
+                  data={selectedPlayer.byTeamSituation}
+                  sortState={teamSituationSort}
+                  onSortChange={setTeamSituationSort}
+                  renderItem={([situation, stats]) => {
+                    const formattedSituation = situation
+                      .split("_")
+                      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                      .join(" ")
+                    return (
+                      <View key={situation} style={themed($statRow)}>
+                        <Text style={themed($statLabel)} text={formattedSituation} />
+                        <View style={themed($statValues)}>
+                          <Text style={themed($winText)} text={`${stats.wins}W`} />
+                          <Text style={themed($lossText)} text={`${stats.losses}L`} />
+                          <Text
+                            style={themed($winPercentText)}
+                            text={`(${Math.round((stats.wins / (stats.wins + stats.losses)) * 100)}%)`}
+                          />
+                        </View>
+                      </View>
+                    )
+                  }}
+                  sortOptions={[
+                    { value: "name-asc", label: "Name A-Z" },
+                    { value: "name-desc", label: "Name Z-A" },
+                    { value: "winrate-asc", label: "Win % ↑" },
+                    { value: "winrate-desc", label: "Win % ↓" },
+                  ]}
+                  sortFunction={(a, b, sortType) => {
+                    const [situationA, statsA] = a
+                    const [situationB, statsB] = b
+                    const winRateA = statsA.wins / (statsA.wins + statsA.losses)
+                    const winRateB = statsB.wins / (statsB.wins + statsB.losses)
+
+                    switch (sortType) {
+                      case "name-asc":
+                        return situationA.localeCompare(situationB)
+                      case "name-desc":
+                        return situationB.localeCompare(situationA)
+                      case "winrate-asc":
+                        return winRateA - winRateB
+                      case "winrate-desc":
+                        return winRateB - winRateA
+                      default:
+                        return situationA.localeCompare(situationB)
                     }
                   }}
                 />
