@@ -10,8 +10,10 @@ import {
   ActivityIndicator,
   Alert,
   Share,
+  Platform,
 } from "react-native"
 import { router, useFocusEffect } from "expo-router"
+import ViewShot from "react-native-view-shot"
 
 import { Button } from "@/components/Button"
 import { Card } from "@/components/Card"
@@ -31,6 +33,7 @@ export const WrappedScreen: FC = function WrappedScreen() {
   const [slides, setSlides] = useState<WrappedSlide[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const scrollViewRef = useRef<ScrollView>(null)
+  const cardRef = useRef<ViewShot>(null)
 
   const loadWrapped = useCallback(async () => {
     setIsLoading(true)
@@ -97,43 +100,29 @@ export const WrappedScreen: FC = function WrappedScreen() {
 
   const handleShare = async () => {
     try {
-      const summarySlide = slides.find((s) => s.type === "summary")
-      const statsSlide = slides.find((s) => s.type === "howdYouDo")
-      if (!summarySlide) return
-
-      let message = `🎱 My 2025 APA Wrapped!\n\n`
-
-      // Add stats
-      if (statsSlide) {
-        message += `📊 Record: ${statsSlide.wins}-${statsSlide.losses}\n`
-        message += `🔥 Best Streak: ${statsSlide.longestWinStreak}\n`
-        message += `📈 Starting SL: ${statsSlide.startingSkill}\n`
-        message += `🎯 Ending SL: ${statsSlide.endingSkill}\n\n`
+      if (!cardRef.current || !cardRef.current.capture) {
+        Alert.alert("Error", "Unable to capture card. Please try again.")
+        return
       }
 
-      // Get top archetype from archetype slide
-      const archetypeSlide = slides.find((s) => s.type === "archetype")
-      if (archetypeSlide && archetypeSlide.top5 && archetypeSlide.top5.length > 0) {
-        const topArchetype = archetypeSlide.top5[0]
-        const display = topArchetype.display || topArchetype.description
-        message += `🎭 My Archetype: ${topArchetype.name}\n${display}\n\n`
+      // Capture the card as an image
+      const uri = await cardRef.current.capture()
+
+      // Share the image
+      const shareOptions: any = {
+        message: "🎱 My 2025 APA Wrapped!",
       }
 
-      if (summarySlide.top3Highlights && summarySlide.top3Highlights.length > 0) {
-        message += `✨ Highlights:\n`
-        summarySlide.top3Highlights.forEach((highlight: string) => {
-          message += `• ${highlight}\n`
-        })
-        message += `\n`
+      if (Platform.OS === "ios") {
+        shareOptions.url = uri
+      } else {
+        shareOptions.url = `file://${uri}`
       }
 
-      message += `Get yours with the On The Hill app! 🎱`
-
-      await Share.share({
-        message,
-      })
+      await Share.share(shareOptions)
     } catch (error) {
       console.error("Error sharing:", error)
+      Alert.alert("Error", "Failed to share. Please try again.")
     }
   }
 
@@ -580,101 +569,104 @@ export const WrappedScreen: FC = function WrappedScreen() {
               contentContainerStyle={themed($slideScrollContent)}
               showsVerticalScrollIndicator={false}
             >
-              <Text style={themed($slideEmoji)} text="🎉" />
-              <Text style={themed($slideTitle)} text="Thanks for Playing!" />
-
               {/* Shareable Summary Card */}
-              <Card
-                style={themed($summaryCard)}
-                ContentComponent={
-                  <View style={themed($summaryCardInner)}>
-                    {/* Title */}
-                    <Text style={themed($summaryCardTitle)} text="My 2025 APA Wrapped" />
+              <ViewShot ref={cardRef} options={{ format: "png", quality: 1.0 }}>
+                <Card
+                  style={themed($summaryCard)}
+                  ContentComponent={
+                    <View style={themed($summaryCardInner)}>
+                      {/* Title */}
+                      <Text style={themed($summaryCardTitle)} text="My 2025 APA Wrapped" />
 
-                    {/* Stats Grid - 2 Columns */}
-                    {statsSlide && (
-                      <View style={themed($summaryGrid)}>
-                        <View style={themed($summaryGridItem)}>
-                          <View style={themed($summaryGridHeader)}>
-                            <Text style={themed($summaryGridEmoji)} text="📊" />
-                            <Text style={themed($summaryGridLabel)} text="Record" />
+                      {/* Stats Grid - 2 Columns */}
+                      {statsSlide && (
+                        <View style={themed($summaryGrid)}>
+                          <View style={themed($summaryGridItem)}>
+                            <View style={themed($summaryGridHeader)}>
+                              <Text style={themed($summaryGridEmoji)} text="📊" />
+                              <Text style={themed($summaryGridLabel)} text="Record" />
+                            </View>
+                            <Text
+                              style={themed($summaryGridValue)}
+                              text={`${statsSlide.wins}-${statsSlide.losses}`}
+                            />
                           </View>
-                          <Text
-                            style={themed($summaryGridValue)}
-                            text={`${statsSlide.wins}-${statsSlide.losses}`}
-                          />
-                        </View>
-                        <View style={themed($summaryGridItem)}>
-                          <View style={themed($summaryGridHeader)}>
-                            <Text style={themed($summaryGridEmoji)} text="🔥" />
-                            <Text style={themed($summaryGridLabel)} text="Best Streak" />
+                          <View style={themed($summaryGridItem)}>
+                            <View style={themed($summaryGridHeader)}>
+                              <Text style={themed($summaryGridEmoji)} text="🔥" />
+                              <Text style={themed($summaryGridLabel)} text="Best Streak" />
+                            </View>
+                            <Text
+                              style={themed($summaryGridValue)}
+                              text={`${statsSlide.longestWinStreak}`}
+                            />
                           </View>
-                          <Text
-                            style={themed($summaryGridValue)}
-                            text={`${statsSlide.longestWinStreak}`}
-                          />
-                        </View>
-                        <View style={themed($summaryGridItem)}>
-                          <View style={themed($summaryGridHeader)}>
-                            <Text style={themed($summaryGridEmoji)} text="📈" />
-                            <Text style={themed($summaryGridLabel)} text="Starting SL" />
+                          <View style={themed($summaryGridItem)}>
+                            <View style={themed($summaryGridHeader)}>
+                              <Text style={themed($summaryGridEmoji)} text="📈" />
+                              <Text style={themed($summaryGridLabel)} text="Starting SL" />
+                            </View>
+                            <Text
+                              style={themed($summaryGridValue)}
+                              text={`${statsSlide.startingSkill}`}
+                            />
                           </View>
-                          <Text
-                            style={themed($summaryGridValue)}
-                            text={`${statsSlide.startingSkill}`}
-                          />
-                        </View>
-                        <View style={themed($summaryGridItem)}>
-                          <View style={themed($summaryGridHeader)}>
-                            <Text style={themed($summaryGridEmoji)} text="🎯" />
-                            <Text style={themed($summaryGridLabel)} text="Ending SL" />
+                          <View style={themed($summaryGridItem)}>
+                            <View style={themed($summaryGridHeader)}>
+                              <Text style={themed($summaryGridEmoji)} text="🎯" />
+                              <Text style={themed($summaryGridLabel)} text="Ending SL" />
+                            </View>
+                            <Text
+                              style={themed($summaryGridValue)}
+                              text={`${statsSlide.endingSkill}`}
+                            />
                           </View>
-                          <Text
-                            style={themed($summaryGridValue)}
-                            text={`${statsSlide.endingSkill}`}
-                          />
                         </View>
-                      </View>
-                    )}
+                      )}
 
-                    {/* Top Archetype */}
-                    {topArchetype && (
-                      <View style={themed($summaryArchetypeSection)}>
-                        <View style={themed($summaryArchetypeHeader)}>
-                          <Text style={themed($summaryArchetypeEmoji)} text="🎭" />
-                          <Text style={themed($summaryArchetypeTitle)} text="Your Archetype" />
+                      {/* Top Archetype */}
+                      {topArchetype && (
+                        <View style={themed($summaryArchetypeSection)}>
+                          <View style={themed($summaryArchetypeHeader)}>
+                            <Text style={themed($summaryArchetypeEmoji)} text="🎭" />
+                            <Text style={themed($summaryArchetypeTitle)} text="Your Archetype" />
+                          </View>
+                          <Text style={themed($summaryArchetypeName)} text={topArchetype.name} />
+                          <Text
+                            style={themed($summaryArchetypeDesc)}
+                            text={topArchetype.explanation || topArchetype.description}
+                          />
                         </View>
-                        <Text style={themed($summaryArchetypeName)} text={topArchetype.name} />
+                      )}
+
+                      {/* Top Highlights */}
+                      {slide.top3Highlights && slide.top3Highlights.length > 0 && (
+                        <View style={themed($summaryHighlightsSection)}>
+                          <View style={themed($summaryHighlightsHeader)}>
+                            <Text style={themed($summaryHighlightsEmoji)} text="✨" />
+                            <Text style={themed($summaryHighlightsTitle)} text="Highlights" />
+                          </View>
+                          {slide.top3Highlights.map((highlight: string, i: number) => (
+                            <Text
+                              key={i}
+                              style={themed($summaryHighlight)}
+                              text={`• ${highlight}`}
+                            />
+                          ))}
+                        </View>
+                      )}
+
+                      {/* Footer */}
+                      <View style={themed($summaryFooter)}>
                         <Text
-                          style={themed($summaryArchetypeDesc)}
-                          text={topArchetype.explanation || topArchetype.description}
+                          style={themed($summaryFooterText)}
+                          text={`Get yours with the "On The Hill" app! 🎱`}
                         />
                       </View>
-                    )}
-
-                    {/* Top Highlights */}
-                    {slide.top3Highlights && slide.top3Highlights.length > 0 && (
-                      <View style={themed($summaryHighlightsSection)}>
-                        <View style={themed($summaryHighlightsHeader)}>
-                          <Text style={themed($summaryHighlightsEmoji)} text="✨" />
-                          <Text style={themed($summaryHighlightsTitle)} text="Highlights" />
-                        </View>
-                        {slide.top3Highlights.map((highlight: string, i: number) => (
-                          <Text key={i} style={themed($summaryHighlight)} text={`• ${highlight}`} />
-                        ))}
-                      </View>
-                    )}
-
-                    {/* Footer */}
-                    <View style={themed($summaryFooter)}>
-                      <Text
-                        style={themed($summaryFooterText)}
-                        text={`Get yours with the "On The Hill" app! 🎱`}
-                      />
                     </View>
-                  </View>
-                }
-              />
+                  }
+                />
+              </ViewShot>
             </ScrollView>
           </View>
         )
@@ -727,7 +719,12 @@ export const WrappedScreen: FC = function WrappedScreen() {
         {slides.map((slide, index) => renderSlide(slide, index))}
       </ScrollView>
 
-      <View style={themed($footerContainer)}>
+      <View
+        style={themed([
+          $footerContainer,
+          currentSlide === slides.length - 1 && $footerContainerSummary,
+        ])}
+      >
         <View style={themed($dotsContainer)}>
           {slides.map((_, index) => (
             <View key={index} style={themed([$dot, index === currentSlide && $dotActive])} />
@@ -785,7 +782,7 @@ const $scrollContent: ThemedStyle<ViewStyle> = () => ({
 
 const $slideContainer: ThemedStyle<ViewStyle> = () => ({
   width: SCREEN_WIDTH,
-  height: SCREEN_HEIGHT * 0.8,
+  height: SCREEN_HEIGHT * 0.85,
 })
 
 const $slideScrollContent: ThemedStyle<ViewStyle> = ({ spacing }) => ({
@@ -988,8 +985,14 @@ const $archetypeExplanation: ThemedStyle<TextStyle> = ({ colors }) => ({
 
 const $footerContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
   paddingHorizontal: spacing.lg,
+  paddingTop: spacing.xl,
   paddingBottom: spacing.xl,
-  gap: spacing.lg,
+  marginTop: spacing.xl,
+  gap: spacing.sm,
+})
+
+const $footerContainerSummary: ThemedStyle<ViewStyle> = () => ({
+  marginTop: 160,
 })
 
 const $dotsContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
@@ -1013,25 +1016,25 @@ const $dotActive: ThemedStyle<ViewStyle> = ({ colors }) => ({
 })
 
 const $doneButton: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
-  borderRadius: 24,
+  borderRadius: 20,
   backgroundColor: colors.palette.primary100,
-  paddingVertical: spacing.md,
-  paddingHorizontal: spacing.xl,
-  minWidth: 200,
+  paddingVertical: spacing.sm,
+  paddingHorizontal: spacing.lg,
+  minWidth: 140,
 })
 
 const $doneButtonText: ThemedStyle<TextStyle> = ({ colors }) => ({
-  fontSize: 18,
-  lineHeight: 24,
+  fontSize: 16,
+  lineHeight: 20,
   textAlignVertical: "center",
   color: colors.palette.primary500,
   fontWeight: "600",
 })
 
 // Summary Card Styles
-const $summaryCard: ThemedStyle<ViewStyle> = ({ spacing, colors }) => ({
+const $summaryCard: ThemedStyle<ViewStyle> = ({ colors }) => ({
   width: "100%",
-  marginBottom: spacing.md,
+  marginBottom: 0,
   padding: 0,
   minHeight: 0,
   backgroundColor: colors.palette.neutral100,
@@ -1044,22 +1047,22 @@ const $summaryCard: ThemedStyle<ViewStyle> = ({ spacing, colors }) => ({
 })
 
 const $summaryCardInner: ThemedStyle<ViewStyle> = ({ spacing }) => ({
-  padding: spacing.lg,
-  gap: spacing.sm,
+  padding: spacing.md,
+  gap: spacing.xs,
 })
 
 const $summaryCardTitle: ThemedStyle<TextStyle> = ({ colors, spacing }) => ({
-  fontSize: 20,
+  fontSize: 18,
   fontWeight: "900",
   color: colors.text,
   textAlign: "center",
-  marginBottom: spacing.xs,
+  marginBottom: spacing.xxs,
 })
 
 const $summaryGrid: ThemedStyle<ViewStyle> = ({ spacing }) => ({
   flexDirection: "row",
   flexWrap: "wrap",
-  gap: spacing.sm,
+  gap: spacing.xs,
   width: "100%",
 })
 
@@ -1067,10 +1070,10 @@ const $summaryGridItem: ThemedStyle<ViewStyle> = ({ spacing, colors }) => ({
   flex: 1,
   minWidth: "45%",
   backgroundColor: colors.background,
-  borderRadius: 12,
-  padding: spacing.sm,
+  borderRadius: 10,
+  padding: spacing.xs,
   alignItems: "center",
-  gap: spacing.xxs,
+  gap: 2,
 })
 
 const $summaryGridHeader: ThemedStyle<ViewStyle> = ({ spacing }) => ({
@@ -1100,9 +1103,9 @@ const $summaryGridValue: ThemedStyle<TextStyle> = ({ colors }) => ({
 const $summaryArchetypeSection: ThemedStyle<ViewStyle> = ({ spacing, colors }) => ({
   width: "100%",
   backgroundColor: colors.background,
-  borderRadius: 12,
-  padding: spacing.sm,
-  gap: spacing.xxs,
+  borderRadius: 10,
+  padding: spacing.xs,
+  gap: 2,
 })
 
 const $summaryArchetypeHeader: ThemedStyle<ViewStyle> = ({ spacing }) => ({
@@ -1139,9 +1142,9 @@ const $summaryArchetypeDesc: ThemedStyle<TextStyle> = ({ colors }) => ({
 const $summaryHighlightsSection: ThemedStyle<ViewStyle> = ({ spacing, colors }) => ({
   width: "100%",
   backgroundColor: colors.background,
-  borderRadius: 12,
-  padding: spacing.sm,
-  gap: spacing.xxs,
+  borderRadius: 10,
+  padding: spacing.xs,
+  gap: 2,
 })
 
 const $summaryHighlightsHeader: ThemedStyle<ViewStyle> = ({ spacing }) => ({
@@ -1171,9 +1174,6 @@ const $summaryHighlight: ThemedStyle<TextStyle> = ({ colors }) => ({
 
 const $summaryFooter: ThemedStyle<ViewStyle> = ({ spacing, colors }) => ({
   width: "100%",
-  paddingTop: spacing.sm,
-  borderTopWidth: 1,
-  borderTopColor: colors.palette.neutral300,
   alignItems: "center",
 })
 
@@ -1193,16 +1193,16 @@ const $fixedButtonsContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
 })
 
 const $fixedShareButton: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
-  borderRadius: 24,
+  borderRadius: 20,
   backgroundColor: colors.palette.primary500,
-  paddingVertical: spacing.md,
-  paddingHorizontal: spacing.xl,
-  minWidth: 120,
+  paddingVertical: spacing.sm,
+  paddingHorizontal: spacing.lg,
+  minWidth: 100,
 })
 
 const $fixedShareButtonText: ThemedStyle<TextStyle> = ({ colors }) => ({
-  fontSize: 18,
-  lineHeight: 24,
+  fontSize: 16,
+  lineHeight: 20,
   textAlignVertical: "center",
   color: colors.palette.neutral100,
   fontWeight: "600",
