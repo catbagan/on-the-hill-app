@@ -1140,6 +1140,8 @@ export const StatsScreen: FC = function StatsScreen() {
                     const [nameB, statsB] = b
                     const winRateA = statsA.wins / (statsA.wins + statsA.losses)
                     const winRateB = statsB.wins / (statsB.wins + statsB.losses)
+                    const matchesA = statsA.wins + statsA.losses
+                    const matchesB = statsB.wins + statsB.losses
 
                     switch (sortType) {
                       case "name-asc":
@@ -1147,8 +1149,10 @@ export const StatsScreen: FC = function StatsScreen() {
                       case "name-desc":
                         return nameB.localeCompare(nameA)
                       case "winrate-asc":
+                        if (winRateA === winRateB) return matchesB - matchesA
                         return winRateA - winRateB
                       case "winrate-desc":
+                        if (winRateB === winRateA) return matchesB - matchesA
                         return winRateB - winRateA
                       default:
                         return nameA.localeCompare(nameB)
@@ -1188,6 +1192,8 @@ export const StatsScreen: FC = function StatsScreen() {
                     const [positionB, statsB] = b
                     const winRateA = statsA.wins / (statsA.wins + statsA.losses)
                     const winRateB = statsB.wins / (statsB.wins + statsB.losses)
+                    const matchesA = statsA.wins + statsA.losses
+                    const matchesB = statsB.wins + statsB.losses
 
                     switch (sortType) {
                       case "position-asc":
@@ -1195,8 +1201,10 @@ export const StatsScreen: FC = function StatsScreen() {
                       case "position-desc":
                         return positionB.localeCompare(positionA)
                       case "winrate-asc":
+                        if (winRateA === winRateB) return matchesB - matchesA
                         return winRateA - winRateB
                       case "winrate-desc":
+                        if (winRateB === winRateA) return matchesB - matchesA
                         return winRateB - winRateA
                       default:
                         return positionA.localeCompare(positionB)
@@ -1282,6 +1290,8 @@ export const StatsScreen: FC = function StatsScreen() {
                     const [inningsB, statsB] = b
                     const winRateA = statsA.wins / (statsA.wins + statsA.losses)
                     const winRateB = statsB.wins / (statsB.wins + statsB.losses)
+                    const matchesA = statsA.wins + statsA.losses
+                    const matchesB = statsB.wins + statsB.losses
 
                     switch (sortType) {
                       case "innings-asc":
@@ -1289,8 +1299,10 @@ export const StatsScreen: FC = function StatsScreen() {
                       case "innings-desc":
                         return parseInt(inningsB) - parseInt(inningsA)
                       case "winrate-asc":
+                        if (winRateA === winRateB) return matchesB - matchesA
                         return winRateA - winRateB
                       case "winrate-desc":
+                        if (winRateB === winRateA) return matchesB - matchesA
                         return winRateB - winRateA
                       default:
                         return parseInt(inningsA) - parseInt(inningsB)
@@ -1336,6 +1348,8 @@ export const StatsScreen: FC = function StatsScreen() {
                     const [situationB, statsB] = b
                     const winRateA = statsA.wins / (statsA.wins + statsA.losses)
                     const winRateB = statsB.wins / (statsB.wins + statsB.losses)
+                    const matchesA = statsA.wins + statsA.losses
+                    const matchesB = statsB.wins + statsB.losses
 
                     switch (sortType) {
                       case "name-asc":
@@ -1343,8 +1357,10 @@ export const StatsScreen: FC = function StatsScreen() {
                       case "name-desc":
                         return situationB.localeCompare(situationA)
                       case "winrate-asc":
+                        if (winRateA === winRateB) return matchesB - matchesA
                         return winRateA - winRateB
                       case "winrate-desc":
+                        if (winRateB === winRateA) return matchesB - matchesA
                         return winRateB - winRateA
                       default:
                         return situationA.localeCompare(situationB)
@@ -1588,8 +1604,10 @@ export const StatsScreen: FC = function StatsScreen() {
                     case "matches-desc":
                       return totalMatchesB - totalMatchesA
                     case "winrate-asc":
+                      if (winRateA === winRateB) return totalMatchesB - totalMatchesA
                       return winRateA - winRateB
                     case "winrate-desc":
+                      if (winRateB === winRateA) return totalMatchesB - totalMatchesA
                       return winRateB - winRateA
                     default:
                       return nameA.localeCompare(nameB)
@@ -1632,6 +1650,8 @@ export const StatsScreen: FC = function StatsScreen() {
                   const skillLevelB = parseInt(skillB)
                   const winRateA = statsA.wins / (statsA.wins + statsA.losses)
                   const winRateB = statsB.wins / (statsB.wins + statsB.losses)
+                  const matchesA = statsA.wins + statsA.losses
+                  const matchesB = statsB.wins + statsB.losses
 
                   switch (sortType) {
                     case "skill-asc":
@@ -1639,8 +1659,10 @@ export const StatsScreen: FC = function StatsScreen() {
                     case "skill-desc":
                       return skillLevelB - skillLevelA
                     case "winrate-asc":
+                      if (winRateA === winRateB) return matchesB - matchesA
                       return winRateA - winRateB
                     case "winrate-desc":
+                      if (winRateB === winRateA) return matchesB - matchesA
                       return winRateB - winRateA
                     default:
                       return skillLevelA - skillLevelB
@@ -1679,6 +1701,8 @@ export const StatsScreen: FC = function StatsScreen() {
                   const skillLevelB = parseInt(skillB)
                   const winRateA = statsA.wins / (statsA.wins + statsA.losses)
                   const winRateB = statsB.wins / (statsB.wins + statsB.losses)
+                  const matchesA = statsA.wins + statsA.losses
+                  const matchesB = statsB.wins + statsB.losses
 
                   switch (sortType) {
                     case "skill-asc":
@@ -1686,8 +1710,10 @@ export const StatsScreen: FC = function StatsScreen() {
                     case "skill-desc":
                       return skillLevelB - skillLevelA
                     case "winrate-asc":
+                      if (winRateA === winRateB) return matchesB - matchesA
                       return winRateA - winRateB
                     case "winrate-desc":
+                      if (winRateB === winRateA) return matchesB - matchesA
                       return winRateB - winRateA
                     default:
                       return skillLevelA - skillLevelB
@@ -1739,6 +1765,8 @@ export const StatsScreen: FC = function StatsScreen() {
                   const diffLevelB = parseInt(diffB)
                   const winRateA = statsA.wins / (statsA.wins + statsA.losses)
                   const winRateB = statsB.wins / (statsB.wins + statsB.losses)
+                  const matchesA = statsA.wins + statsA.losses
+                  const matchesB = statsB.wins + statsB.losses
 
                   switch (sortType) {
                     case "diff-asc":
@@ -1746,8 +1774,10 @@ export const StatsScreen: FC = function StatsScreen() {
                     case "diff-desc":
                       return diffLevelB - diffLevelA
                     case "winrate-asc":
+                      if (winRateA === winRateB) return matchesB - matchesA
                       return winRateA - winRateB
                     case "winrate-desc":
+                      if (winRateB === winRateA) return matchesB - matchesA
                       return winRateB - winRateA
                     default:
                       return diffLevelA - diffLevelB

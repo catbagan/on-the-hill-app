@@ -108,10 +108,8 @@ export const WrappedScreen: FC = function WrappedScreen() {
       // Capture the card as an image
       const uri = await cardRef.current.capture()
 
-      // Share the image
-      const shareOptions: any = {
-        message: "🎱 My 2025 APA Wrapped!",
-      }
+      // Share the image only
+      const shareOptions: any = {}
 
       if (Platform.OS === "ios") {
         shareOptions.url = uri
@@ -570,9 +568,11 @@ export const WrappedScreen: FC = function WrappedScreen() {
               showsVerticalScrollIndicator={false}
             >
               {/* Shareable Summary Card */}
-              <ViewShot ref={cardRef} options={{ format: "png", quality: 1.0 }}>
-                <Card
-                  style={themed($summaryCard)}
+              <View style={themed($summaryCardWrapper)}>
+                <ViewShot ref={cardRef} options={{ format: "png", quality: 1.0 }}>
+                  <View style={themed($summaryCardContainer)}>
+                    <Card
+                      style={themed($summaryCard)}
                   ContentComponent={
                     <View style={themed($summaryCardInner)}>
                       {/* Title */}
@@ -666,7 +666,9 @@ export const WrappedScreen: FC = function WrappedScreen() {
                     </View>
                   }
                 />
-              </ViewShot>
+                  </View>
+                </ViewShot>
+              </View>
             </ScrollView>
           </View>
         )
@@ -991,8 +993,10 @@ const $footerContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
   gap: spacing.sm,
 })
 
-const $footerContainerSummary: ThemedStyle<ViewStyle> = () => ({
-  // marginTop: 160,
+const $footerContainerSummary: ThemedStyle<ViewStyle> = ({ spacing }) => ({
+  marginTop: spacing.sm,
+  paddingTop: spacing.sm,
+  paddingBottom: spacing.sm,
 })
 
 const $dotsContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
@@ -1032,27 +1036,31 @@ const $doneButtonText: ThemedStyle<TextStyle> = ({ colors }) => ({
 })
 
 // Summary Card Styles
+const $summaryCardWrapper: ThemedStyle<ViewStyle> = ({ spacing }) => ({
+  width: "100%",
+  marginBottom: spacing.lg,
+})
+
+const $summaryCardContainer: ThemedStyle<ViewStyle> = ({ colors }) => ({
+  backgroundColor: colors.palette.neutral100,
+})
+
 const $summaryCard: ThemedStyle<ViewStyle> = ({ colors }) => ({
   width: "100%",
-  marginBottom: 0,
   padding: 0,
   minHeight: 0,
   backgroundColor: colors.palette.neutral100,
-  borderRadius: 16,
-  shadowColor: "#000",
-  shadowOffset: { width: 0, height: 2 },
-  shadowOpacity: 0.08,
-  shadowRadius: 8,
-  elevation: 3,
+  borderRadius: 0,
+  borderWidth: 0,
 })
 
 const $summaryCardInner: ThemedStyle<ViewStyle> = ({ spacing }) => ({
-  padding: spacing.md,
-  gap: spacing.xs,
+  padding: spacing.lg,
+  gap: spacing.sm,
 })
 
 const $summaryCardTitle: ThemedStyle<TextStyle> = ({ colors, spacing }) => ({
-  fontSize: 18,
+  fontSize: 20,
   fontWeight: "900",
   color: colors.text,
   textAlign: "center",
@@ -1071,9 +1079,9 @@ const $summaryGridItem: ThemedStyle<ViewStyle> = ({ spacing, colors }) => ({
   minWidth: "45%",
   backgroundColor: colors.background,
   borderRadius: 10,
-  padding: spacing.xs,
+  padding: spacing.sm,
   alignItems: "center",
-  gap: 2,
+  gap: 4,
 })
 
 const $summaryGridHeader: ThemedStyle<ViewStyle> = ({ spacing }) => ({
@@ -1083,18 +1091,18 @@ const $summaryGridHeader: ThemedStyle<ViewStyle> = ({ spacing }) => ({
 })
 
 const $summaryGridEmoji: ThemedStyle<TextStyle> = () => ({
-  fontSize: 16,
-  lineHeight: 20,
+  fontSize: 18,
+  lineHeight: 22,
 })
 
 const $summaryGridLabel: ThemedStyle<TextStyle> = ({ colors }) => ({
-  fontSize: 11,
+  fontSize: 12,
   fontWeight: "600",
   color: colors.textDim,
 })
 
 const $summaryGridValue: ThemedStyle<TextStyle> = ({ colors }) => ({
-  fontSize: 18,
+  fontSize: 20,
   fontWeight: "900",
   color: colors.palette.primary500,
   textAlign: "center",
@@ -1104,8 +1112,8 @@ const $summaryArchetypeSection: ThemedStyle<ViewStyle> = ({ spacing, colors }) =
   width: "100%",
   backgroundColor: colors.background,
   borderRadius: 10,
-  padding: spacing.xs,
-  gap: 2,
+  padding: spacing.sm,
+  gap: 4,
 })
 
 const $summaryArchetypeHeader: ThemedStyle<ViewStyle> = ({ spacing }) => ({

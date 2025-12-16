@@ -38,7 +38,7 @@ export const ProfileScreen: FC = function ProfileScreen() {
   }, [])
 
   const handleContactUs = () => {
-    const email = "daniel@catbagan.me"
+    const email = "help@onthehill.app"
     const subject = "On The Hill App Inquiry"
     const mailtoUrl = `mailto:${email}?subject=${encodeURIComponent(subject)}`
 
