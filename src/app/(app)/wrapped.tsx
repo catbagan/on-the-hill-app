@@ -12,10 +12,13 @@ import {
   Share,
   Platform,
   Animated,
+  TouchableOpacity,
 } from "react-native"
 import { router, useFocusEffect } from "expo-router"
 import ViewShot from "react-native-view-shot"
 import * as Haptics from "expo-haptics"
+import { Audio } from "expo-av"
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons"
 
 import { Button } from "@/components/Button"
 import { Card } from "@/components/Card"
@@ -37,10 +40,12 @@ export const WrappedScreen: FC = function WrappedScreen() {
   const [currentSlide, setCurrentSlide] = useState(0)
   const [slides, setSlides] = useState<WrappedSlide[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isMuted, setIsMuted] = useState(false)
   const scrollViewRef = useRef<ScrollView>(null)
   const cardRef = useRef<ViewShot>(null)
   const fadeAnim = useRef(new Animated.Value(1)).current
   const previousSlideRef = useRef(0)
+  const sound = useRef<Audio.Sound | null>(null)
 
   const loadWrapped = useCallback(async () => {
     setIsLoading(true)
@@ -96,8 +101,68 @@ export const WrappedScreen: FC = function WrappedScreen() {
       loadWrapped()
       // Mark wrapped as viewed (so promo won't show again)
       markWrapped2025AsViewed()
+      // Start music
+      playBackgroundMusic()
+
+      return () => {
+        // Cleanup music when leaving screen
+        stopBackgroundMusic()
+      }
     }, [loadWrapped]),
   )
+
+  // Background music playback
+  const playBackgroundMusic = async () => {
+    try {
+      await Audio.setAudioModeAsync({
+        playsInSilentModeIOS: false,
+        staysActiveInBackground: false,
+      })
+
+      if (sound.current) {
+        await sound.current.unloadAsync()
+      }
+
+      // Load your music file from assets/audio/
+      // Using relative path from src/app/(app)/ to assets/
+      const { sound: newSound } = await Audio.Sound.createAsync(
+        require("../../../assets/audio/wrapped-music.mp3"),
+        { shouldPlay: !isMuted, isLooping: true, volume: 0.3 }
+      )
+      sound.current = newSound
+    } catch (error) {
+      console.log("Audio playback error:", error)
+      // Fail silently if audio file doesn't exist yet
+    }
+  }
+
+  const stopBackgroundMusic = async () => {
+    try {
+      if (sound.current) {
+        await sound.current.stopAsync()
+        await sound.current.unloadAsync()
+        sound.current = null
+      }
+    } catch (error) {
+      console.log("Audio cleanup error:", error)
+    }
+  }
+
+  const toggleMute = async () => {
+    try {
+      if (sound.current) {
+        if (isMuted) {
+          await sound.current.playAsync()
+        } else {
+          await sound.current.pauseAsync()
+        }
+      }
+      setIsMuted(!isMuted)
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    } catch (error) {
+      console.log("Toggle mute error:", error)
+    }
+  }
 
   const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const offsetX = event.nativeEvent.contentOffset.x
@@ -740,6 +805,19 @@ export const WrappedScreen: FC = function WrappedScreen() {
         </View>
         {/* Falling snow effect ❄️ - extra snowy while loading! */}
         <SnowFall count={200} />
+
+        {/* Mute button */}
+        <TouchableOpacity
+          style={themed($muteButton)}
+          onPress={toggleMute}
+          activeOpacity={0.7}
+        >
+          <MaterialCommunityIcons
+            name={isMuted ? "volume-off" : "volume-high"}
+            size={24}
+            color={themed("colors.text")}
+          />
+        </TouchableOpacity>
       </Screen>
     )
   }
@@ -758,6 +836,19 @@ export const WrappedScreen: FC = function WrappedScreen() {
         </View>
         {/* Falling snow effect ❄️ */}
         <SnowFall count={100} />
+
+        {/* Mute button */}
+        <TouchableOpacity
+          style={themed($muteButton)}
+          onPress={toggleMute}
+          activeOpacity={0.7}
+        >
+          <MaterialCommunityIcons
+            name={isMuted ? "volume-off" : "volume-high"}
+            size={24}
+            color={themed("colors.text")}
+          />
+        </TouchableOpacity>
       </Screen>
     )
   }
@@ -819,9 +910,36 @@ export const WrappedScreen: FC = function WrappedScreen() {
 
       {/* Falling snow effect ❄️ */}
       <SnowFall count={50} />
+
+      {/* Mute button */}
+      <TouchableOpacity
+        style={themed($muteButton)}
+        onPress={toggleMute}
+        activeOpacity={0.7}
+      >
+        <MaterialCommunityIcons
+          name={isMuted ? "volume-off" : "volume-high"}
+          size={24}
+          color={themed("colors.text")}
+        />
+      </TouchableOpacity>
     </Screen>
   )
 }
+
+const $muteButton: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
+  position: "absolute",
+  top: spacing.xl + 60, // Below close button
+  right: spacing.lg,
+  backgroundColor: colors.background,
+  borderRadius: 20,
+  width: 40,
+  height: 40,
+  justifyContent: "center",
+  alignItems: "center",
+  borderWidth: 1,
+  borderColor: colors.border,
+})
 
 export default WrappedScreen
 
