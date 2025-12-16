@@ -20,6 +20,7 @@ import * as Haptics from "expo-haptics"
 import { Button } from "@/components/Button"
 import { Card } from "@/components/Card"
 import { Screen } from "@/components/Screen"
+import { SnowFall } from "@/components/SnowFall"
 import { Text } from "@/components/Text"
 import { wrappedApi, type WrappedSlide, playerApi } from "@/services/api/requests"
 import { useAppTheme } from "@/theme/context"
@@ -737,6 +738,8 @@ export const WrappedScreen: FC = function WrappedScreen() {
           <ActivityIndicator size="large" />
           <Text style={themed($loadingText)} text="Loading your wrapped..." />
         </View>
+        {/* Falling snow effect ❄️ - extra snowy while loading! */}
+        <SnowFall count={200} />
       </Screen>
     )
   }
@@ -753,6 +756,8 @@ export const WrappedScreen: FC = function WrappedScreen() {
             textStyle={themed($doneButtonText)}
           />
         </View>
+        {/* Falling snow effect ❄️ */}
+        <SnowFall count={100} />
       </Screen>
     )
   }
@@ -811,6 +816,9 @@ export const WrappedScreen: FC = function WrappedScreen() {
           </View>
         )}
       </View>
+
+      {/* Falling snow effect ❄️ */}
+      <SnowFall count={50} />
     </Screen>
   )
 }
