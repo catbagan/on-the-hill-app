@@ -11,9 +11,11 @@ import {
   Alert,
   Share,
   Platform,
+  Animated,
 } from "react-native"
 import { router, useFocusEffect } from "expo-router"
 import ViewShot from "react-native-view-shot"
+import * as Haptics from "expo-haptics"
 
 import { Button } from "@/components/Button"
 import { Card } from "@/components/Card"
@@ -23,6 +25,8 @@ import { wrappedApi, type WrappedSlide, playerApi } from "@/services/api/request
 import { useAppTheme } from "@/theme/context"
 import type { ThemedStyle } from "@/theme/types"
 import { getStoredPlayers } from "@/utils/storage/statsStorage"
+import { WrappedEvents } from "@/services/analytics"
+import { markWrapped2025AsViewed } from "@/utils/storage/wrappedPromoStorage"
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window")
 const CURRENT_YEAR = 2025
@@ -34,6 +38,8 @@ export const WrappedScreen: FC = function WrappedScreen() {
   const [isLoading, setIsLoading] = useState(true)
   const scrollViewRef = useRef<ScrollView>(null)
   const cardRef = useRef<ViewShot>(null)
+  const fadeAnim = useRef(new Animated.Value(1)).current
+  const previousSlideRef = useRef(0)
 
   const loadWrapped = useCallback(async () => {
     setIsLoading(true)
@@ -72,6 +78,8 @@ export const WrappedScreen: FC = function WrappedScreen() {
 
       if (result.slides) {
         setSlides(result.slides)
+        // Track wrapped viewed
+        WrappedEvents.viewed()
       }
     } catch (error) {
       console.error("Error loading wrapped:", error)
@@ -85,21 +93,58 @@ export const WrappedScreen: FC = function WrappedScreen() {
   useFocusEffect(
     useCallback(() => {
       loadWrapped()
+      // Mark wrapped as viewed (so promo won't show again)
+      markWrapped2025AsViewed()
     }, [loadWrapped]),
   )
 
   const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const offsetX = event.nativeEvent.contentOffset.x
     const slideIndex = Math.round(offsetX / SCREEN_WIDTH)
-    setCurrentSlide(slideIndex)
+    
+    if (slideIndex !== previousSlideRef.current) {
+      // Trigger haptic feedback on slide change
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+      
+      // Trigger fade animation
+      Animated.sequence([
+        Animated.timing(fadeAnim, {
+          toValue: 0.7,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+      ]).start()
+      
+      previousSlideRef.current = slideIndex
+      setCurrentSlide(slideIndex)
+      
+      // Track slide viewed
+      if (slides[slideIndex]) {
+        WrappedEvents.slideViewed(slides[slideIndex].type, slideIndex)
+        
+        // Track completion if reached the last slide
+        if (slideIndex === slides.length - 1) {
+          WrappedEvents.completed(slides.length)
+        }
+      }
+    }
   }
 
   const handleClose = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
     router.back()
   }
 
   const handleShare = async () => {
     try {
+      // Haptic feedback for button press
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+      
       if (!cardRef.current || !cardRef.current.capture) {
         Alert.alert("Error", "Unable to capture card. Please try again.")
         return
@@ -118,9 +163,15 @@ export const WrappedScreen: FC = function WrappedScreen() {
       }
 
       await Share.share(shareOptions)
+      
+      // Track successful share
+      WrappedEvents.shared()
     } catch (error) {
       console.error("Error sharing:", error)
       Alert.alert("Error", "Failed to share. Please try again.")
+      
+      // Track share failure
+      WrappedEvents.shareFailed(error instanceof Error ? error.message : 'Unknown error')
     }
   }
 
@@ -718,7 +769,17 @@ export const WrappedScreen: FC = function WrappedScreen() {
         style={themed($scrollView)}
         contentContainerStyle={themed($scrollContent)}
       >
-        {slides.map((slide, index) => renderSlide(slide, index))}
+        {slides.map((slide, index) => (
+          <Animated.View
+            key={index}
+            style={[
+              { width: SCREEN_WIDTH },
+              index === currentSlide && { opacity: fadeAnim },
+            ]}
+          >
+            {renderSlide(slide, index)}
+          </Animated.View>
+        ))}
       </ScrollView>
 
       <View

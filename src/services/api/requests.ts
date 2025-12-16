@@ -155,8 +155,8 @@ export interface ReportGetResponse {
 }
 
 // API endpoints
-const API_BASE_URL = "https://onthehill.app/api"
-// const API_BASE_URL = "http://localhost:5173/api"
+// export const API_BASE_URL = "https://onthehill.app/api"
+export const API_BASE_URL = "http://localhost:5173/api"
 
 // Authentication endpoints
 export const authApi = {

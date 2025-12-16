@@ -11,6 +11,7 @@ import { useAppTheme } from "@/theme/context"
 import type { ThemedStyle } from "@/theme/types"
 import { getCurrentUser } from "@/utils/storage/authStorage"
 import { clearStatsData } from "@/utils/storage/statsStorage"
+import { clearWrappedPromoData } from "@/utils/storage/wrappedPromoStorage"
 
 export const ProfileScreen: FC = function ProfileScreen() {
   const { themed } = useAppTheme()
@@ -73,6 +74,11 @@ export const ProfileScreen: FC = function ProfileScreen() {
 
   const handleWrapped = () => {
     router.push("/(app)/wrapped" as any)
+  }
+
+  const handleClearWrappedPromo = () => {
+    clearWrappedPromoData()
+    Alert.alert("Debug", "Wrapped promo cleared! Restart app to see the promo modal again.")
   }
 
   if (!userData) {
@@ -140,6 +146,15 @@ export const ProfileScreen: FC = function ProfileScreen() {
           style={themed($manageDataButton)}
           textStyle={themed($manageDataButtonText)}
         />
+
+        {__DEV__ && (
+          <Button
+            text="🐛 Clear Wrapped Promo"
+            onPress={handleClearWrappedPromo}
+            style={themed($debugButton)}
+            textStyle={themed($debugButtonText)}
+          />
+        )}
 
         <Button
           text={isLoading ? "Signing out..." : "Sign Out"}
@@ -299,6 +314,22 @@ const $manageDataButtonText: ThemedStyle<TextStyle> = ({ colors }) => ({
   lineHeight: 24,
   textAlignVertical: "center",
   color: colors.palette.primary500,
+})
+
+const $debugButton: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
+  borderRadius: 24,
+  backgroundColor: colors.palette.overlay20,
+  paddingVertical: spacing.md,
+  width: "100%",
+  borderWidth: 1,
+  borderColor: colors.border,
+})
+
+const $debugButtonText: ThemedStyle<TextStyle> = ({ colors }) => ({
+  fontSize: 18,
+  lineHeight: 24,
+  textAlignVertical: "center",
+  color: colors.text,
 })
 
 const $signOutButton: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({

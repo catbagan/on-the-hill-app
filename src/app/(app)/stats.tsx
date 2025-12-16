@@ -21,6 +21,7 @@ import { playerApi, PlayerSearchResponse, reportApi } from "@/services/api/reque
 import { useAppTheme } from "@/theme/context"
 import type { ThemedStyle } from "@/theme/types"
 import { getCurrentUser } from "@/utils/storage/authStorage"
+import { StatsEvents } from "@/services/analytics"
 import {
   storePlayers,
   getStoredPlayers,
@@ -140,6 +141,13 @@ export const StatsScreen: FC = function StatsScreen() {
   const [hasAutoSearched, setHasAutoSearched] = useState<boolean>(false)
   const [availableSeasons, setAvailableSeasons] = useState<string[]>([])
   const [selectedSeason, setSelectedSeason] = useState<string>("all")
+
+  // Track stats view when player changes
+  useEffect(() => {
+    if (selectedPlayerIndex >= 0 && players[selectedPlayerIndex]) {
+      StatsEvents.viewed(players[selectedPlayerIndex].name)
+    }
+  }, [selectedPlayerIndex, players])
 
   // Load persisted data on component mount
   useEffect(() => {
@@ -356,20 +364,24 @@ export const StatsScreen: FC = function StatsScreen() {
     setError("")
 
     try {
-      const result = await playerApi.search({ name: playerName.trim() })
+      const searchTerm = playerName.trim()
+      const result = await playerApi.search({ name: searchTerm })
 
       console.log("Player search result:", result)
 
       if (result.error) {
         setError(result.error)
+        StatsEvents.playerSearched(searchTerm, 0)
         return
       }
 
       if (!result.player) {
         setError("No player found with that name")
+        StatsEvents.playerSearched(searchTerm, 0)
         return
       }
 
+      StatsEvents.playerSearched(searchTerm, 1)
       setPlayerSearchResult(result)
       setShowConfirmation(true)
     } catch (error) {
@@ -663,6 +675,10 @@ export const StatsScreen: FC = function StatsScreen() {
         [playerStats.name]: currentDate,
       }))
 
+      // Track player added and report generated
+      StatsEvents.playerSelected(playerStats.name, playerSearchResult.player.memberNumber)
+      StatsEvents.reportGenerated(playerStats.name, !!reportResult)
+
       setPlayerName("")
       setShowInputForm(false)
       setPlayerSearchResult(null)
@@ -699,6 +715,9 @@ export const StatsScreen: FC = function StatsScreen() {
     setSelectedSeason(season)
     resetSorters()
     scrollViewRef.current?.scrollTo({ y: 0, animated: true })
+    
+    // Track season selection
+    StatsEvents.seasonSelected(season)
   }
 
   const handleSelectPlayer = (index: number) => {
@@ -707,6 +726,11 @@ export const StatsScreen: FC = function StatsScreen() {
     setSelectedSeason("all")
     resetSorters()
     scrollViewRef.current?.scrollTo({ y: 0, animated: true })
+    
+    // Track player chip tap
+    if (players[index]) {
+      StatsEvents.playerChipTapped(players[index].name, index)
+    }
   }
 
   // View 1: Player Name Input (when no players exist or adding new player)
@@ -1018,22 +1042,34 @@ export const StatsScreen: FC = function StatsScreen() {
               <Text
                 style={themed([$tab, activeTab === "overall" && $activeTab])}
                 text="Overall"
-                onPress={() => setActiveTab("overall")}
+                onPress={() => {
+                  setActiveTab("overall")
+                  StatsEvents.tabChanged("overall")
+                }}
               />
               <Text
                 style={themed([$tab, activeTab === "trending" && $activeTab])}
                 text="Trending"
-                onPress={() => setActiveTab("trending")}
+                onPress={() => {
+                  setActiveTab("trending")
+                  StatsEvents.tabChanged("trending")
+                }}
               />
               <Text
                 style={themed([$tab, activeTab === "skill" && $activeTab])}
                 text="Skill"
-                onPress={() => setActiveTab("skill")}
+                onPress={() => {
+                  setActiveTab("skill")
+                  StatsEvents.tabChanged("skill")
+                }}
               />
               <Text
                 style={themed([$tab, activeTab === "headToHead" && $activeTab])}
                 text="Head to Head"
-                onPress={() => setActiveTab("headToHead")}
+                onPress={() => {
+                  setActiveTab("headToHead")
+                  StatsEvents.tabChanged("headToHead")
+                }}
               />
             </ScrollView>
           </View>
@@ -1115,7 +1151,10 @@ export const StatsScreen: FC = function StatsScreen() {
                   heading="By Location"
                   data={selectedPlayer.byLocation}
                   sortState={locationSort}
-                  onSortChange={setLocationSort}
+                  onSortChange={(sort) => {
+                    setLocationSort(sort)
+                    StatsEvents.sortChanged('location', sort)
+                  }}
                   renderItem={([location, stats]) => (
                     <View key={location} style={themed($statRow)}>
                       <Text style={themed($statLabel)} text={location} />
@@ -1167,7 +1206,10 @@ export const StatsScreen: FC = function StatsScreen() {
                   heading="By Position"
                   data={selectedPlayer.byPosition}
                   sortState={positionSort}
-                  onSortChange={setPositionSort}
+                  onSortChange={(sort) => {
+                    setPositionSort(sort)
+                    StatsEvents.sortChanged('position', sort)
+                  }}
                   renderItem={([position, stats]) => (
                     <View key={position} style={themed($statRow)}>
                       <Text style={themed($statLabel)} text={position} />
@@ -1219,7 +1261,10 @@ export const StatsScreen: FC = function StatsScreen() {
                   heading="Score Distribution"
                   data={selectedPlayer.scoreDistribution}
                   sortState={scoreSort}
-                  onSortChange={setScoreSort}
+                  onSortChange={(sort) => {
+                    setScoreSort(sort)
+                    StatsEvents.sortChanged('score', sort)
+                  }}
                   renderItem={([score, count]) => (
                     <View key={score} style={themed($statRow)}>
                       <Text style={themed($statLabel)} text={score} />
@@ -1265,7 +1310,10 @@ export const StatsScreen: FC = function StatsScreen() {
                   heading="By Innings"
                   data={selectedPlayer.byInnings}
                   sortState={inningsSort}
-                  onSortChange={setInningsSort}
+                  onSortChange={(sort) => {
+                    setInningsSort(sort)
+                    StatsEvents.sortChanged('innings', sort)
+                  }}
                   renderItem={([innings, stats]) => (
                     <View key={innings} style={themed($statRow)}>
                       <Text style={themed($statLabel)} text={innings} />
@@ -1317,7 +1365,10 @@ export const StatsScreen: FC = function StatsScreen() {
                   heading="By Team Situation"
                   data={selectedPlayer.byTeamSituation}
                   sortState={teamSituationSort}
-                  onSortChange={setTeamSituationSort}
+                  onSortChange={(sort) => {
+                    setTeamSituationSort(sort)
+                    StatsEvents.sortChanged('teamSituation', sort)
+                  }}
                   renderItem={([situation, stats]) => {
                     const formattedSituation = situation
                       .split("_")
@@ -1564,7 +1615,10 @@ export const StatsScreen: FC = function StatsScreen() {
                 heading="Head to Head"
                 data={selectedPlayer.headToHead}
                 sortState={headToHeadSort}
-                onSortChange={setHeadToHeadSort}
+                onSortChange={(sort) => {
+                  setHeadToHeadSort(sort)
+                  StatsEvents.sortChanged('headToHead', sort)
+                }}
                 renderItem={([opponent, stats]) => (
                   <View key={opponent} style={themed($statRow)}>
                     <Text style={themed($statLabel)} text={opponent} />
@@ -1623,7 +1677,10 @@ export const StatsScreen: FC = function StatsScreen() {
                 heading="By My Skill"
                 data={selectedPlayer.byMySkill}
                 sortState={mySkillSort}
-                onSortChange={setMySkillSort}
+                onSortChange={(sort) => {
+                  setMySkillSort(sort)
+                  StatsEvents.sortChanged('mySkill', sort)
+                }}
                 renderItem={([skill, stats]) => (
                   <View key={skill} style={themed($statRow)}>
                     <Text style={themed($statLabel)} text={`Skill ${skill}`} />
@@ -1674,7 +1731,10 @@ export const StatsScreen: FC = function StatsScreen() {
                 heading="By Opponent Skill"
                 data={selectedPlayer.byOpponentSkill}
                 sortState={oppSkillSort}
-                onSortChange={setOppSkillSort}
+                onSortChange={(sort) => {
+                  setOppSkillSort(sort)
+                  StatsEvents.sortChanged('opponentSkill', sort)
+                }}
                 renderItem={([skill, stats]) => (
                   <View key={skill} style={themed($statRow)}>
                     <Text style={themed($statLabel)} text={`Skill ${skill}`} />
@@ -1725,7 +1785,10 @@ export const StatsScreen: FC = function StatsScreen() {
                 heading="By Skill Difference"
                 data={selectedPlayer.bySkillDifference}
                 sortState={skillDiffSort}
-                onSortChange={setSkillDiffSort}
+                onSortChange={(sort) => {
+                  setSkillDiffSort(sort)
+                  StatsEvents.sortChanged('skillDifference', sort)
+                }}
                 renderItem={([difference, stats]) => {
                   const diffNum = parseInt(difference)
                   let diffLabel = ""
