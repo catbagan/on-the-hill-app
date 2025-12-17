@@ -1,4 +1,4 @@
-import { FC, useState, useRef, useCallback } from "react"
+import { FC, useState, useRef, useCallback, useEffect } from "react"
 import {
   ScrollView,
   View,
@@ -56,6 +56,9 @@ export const WrappedScreen: FC = function WrappedScreen() {
       // Get the first player from stored players to get memberId
       const storedPlayers = await getStoredPlayers()
       if (!storedPlayers || storedPlayers.length === 0) {
+        // Stop music and mark as viewed before going back
+        await stopBackgroundMusic()
+        markWrapped2025AsViewed()
         Alert.alert("No Players", "Please add a player in Stats first to view your wrapped.")
         router.back()
         return
@@ -66,6 +69,9 @@ export const WrappedScreen: FC = function WrappedScreen() {
       const searchResult = await playerApi.search({ name: playerName })
 
       if (!searchResult.player || !searchResult.player.memberNumber) {
+        // Stop music and mark as viewed before going back
+        await stopBackgroundMusic()
+        markWrapped2025AsViewed()
         Alert.alert("Error", "Could not find player information.")
         router.back()
         return
@@ -77,6 +83,9 @@ export const WrappedScreen: FC = function WrappedScreen() {
       })
 
       if (result.error) {
+        // Stop music and mark as viewed before going back
+        await stopBackgroundMusic()
+        markWrapped2025AsViewed()
         Alert.alert("Error", result.error)
         router.back()
         return
@@ -89,6 +98,9 @@ export const WrappedScreen: FC = function WrappedScreen() {
       }
     } catch (error) {
       console.error("Error loading wrapped:", error)
+      // Stop music and mark as viewed before going back
+      await stopBackgroundMusic()
+      markWrapped2025AsViewed()
       Alert.alert("Error", "Failed to load wrapped data. Please try again.")
       router.back()
     } finally {
@@ -101,8 +113,6 @@ export const WrappedScreen: FC = function WrappedScreen() {
       loadWrapped()
       // Mark wrapped as viewed (so promo won't show again)
       markWrapped2025AsViewed()
-      // Start music
-      playBackgroundMusic()
 
       return () => {
         // Cleanup music when leaving screen
@@ -111,12 +121,23 @@ export const WrappedScreen: FC = function WrappedScreen() {
     }, [loadWrapped]),
   )
 
+  // Start music only when slides are loaded and available
+  useEffect(() => {
+    if (!isLoading && slides.length > 0) {
+      playBackgroundMusic()
+    } else if (!isLoading && slides.length === 0) {
+      stopBackgroundMusic()
+    }
+  }, [isLoading, slides.length])
+
   // Background music playback
   const playBackgroundMusic = async () => {
     try {
+      // Set audio mode to allow playback even when silent switch is on
       await Audio.setAudioModeAsync({
-        playsInSilentModeIOS: false,
+        playsInSilentModeIOS: true, // ⚠️ Important: Play even when silent switch is on
         staysActiveInBackground: false,
+        shouldDuckAndroid: false,
       })
 
       if (sound.current) {
@@ -124,14 +145,17 @@ export const WrappedScreen: FC = function WrappedScreen() {
       }
 
       // Load your music file from assets/audio/
-      // Using relative path from src/app/(app)/ to assets/
+      const musicAsset = require("../../../assets/audio/wrapped-music.mp3")
+      
       const { sound: newSound } = await Audio.Sound.createAsync(
-        require("../../../assets/audio/wrapped-music.mp3"),
+        musicAsset,
         { shouldPlay: !isMuted, isLooping: true, volume: 0.3 }
       )
       sound.current = newSound
+      
+      console.log("✅ Audio loaded and playing")
     } catch (error) {
-      console.log("Audio playback error:", error)
+      console.error("❌ Audio playback error:", error)
       // Fail silently if audio file doesn't exist yet
     }
   }
@@ -929,7 +953,7 @@ export const WrappedScreen: FC = function WrappedScreen() {
 
 const $muteButton: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
   position: "absolute",
-  top: spacing.xl + 60, // Below close button
+  bottom: spacing.xl,
   right: spacing.lg,
   backgroundColor: colors.background,
   borderRadius: 20,
