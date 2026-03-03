@@ -14,22 +14,22 @@ import {
   Animated,
   TouchableOpacity,
 } from "react-native"
-import { router, useFocusEffect } from "expo-router"
-import ViewShot from "react-native-view-shot"
 import * as Haptics from "expo-haptics"
-import { Audio } from "expo-av"
+import { router, useFocusEffect } from "expo-router"
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons"
+import ViewShot from "react-native-view-shot"
 
 import { Button } from "@/components/Button"
 import { Card } from "@/components/Card"
 import { Screen } from "@/components/Screen"
 import { SnowFall } from "@/components/SnowFall"
 import { Text } from "@/components/Text"
+import { useWrappedAudio } from "@/hooks/useWrappedAudio"
+import { WrappedEvents } from "@/services/analytics"
 import { wrappedApi, type WrappedSlide, playerApi } from "@/services/api/requests"
 import { useAppTheme } from "@/theme/context"
 import type { ThemedStyle } from "@/theme/types"
 import { getStoredPlayers } from "@/utils/storage/statsStorage"
-import { WrappedEvents } from "@/services/analytics"
 import { markWrapped2025AsViewed } from "@/utils/storage/wrappedPromoStorage"
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window")
@@ -40,12 +40,11 @@ export const WrappedScreen: FC = function WrappedScreen() {
   const [currentSlide, setCurrentSlide] = useState(0)
   const [slides, setSlides] = useState<WrappedSlide[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [isMuted, setIsMuted] = useState(false)
+  const { isMuted, playBackgroundMusic, stopBackgroundMusic, toggleMute } = useWrappedAudio()
   const scrollViewRef = useRef<ScrollView>(null)
   const cardRef = useRef<ViewShot>(null)
   const fadeAnim = useRef(new Animated.Value(1)).current
   const previousSlideRef = useRef(0)
-  const sound = useRef<Audio.Sound | null>(null)
 
   const loadWrapped = useCallback(async () => {
     setIsLoading(true)
@@ -130,72 +129,14 @@ export const WrappedScreen: FC = function WrappedScreen() {
     }
   }, [isLoading, slides.length])
 
-  // Background music playback
-  const playBackgroundMusic = async () => {
-    try {
-      // Set audio mode to allow playback even when silent switch is on
-      await Audio.setAudioModeAsync({
-        playsInSilentModeIOS: true, // ⚠️ Important: Play even when silent switch is on
-        staysActiveInBackground: false,
-        shouldDuckAndroid: false,
-      })
-
-      if (sound.current) {
-        await sound.current.unloadAsync()
-      }
-
-      // Load your music file from assets/audio/
-      const musicAsset = require("../../../assets/audio/wrapped-music.mp3")
-      
-      const { sound: newSound } = await Audio.Sound.createAsync(
-        musicAsset,
-        { shouldPlay: !isMuted, isLooping: true, volume: 0.3 }
-      )
-      sound.current = newSound
-      
-      console.log("✅ Audio loaded and playing")
-    } catch (error) {
-      console.error("❌ Audio playback error:", error)
-      // Fail silently if audio file doesn't exist yet
-    }
-  }
-
-  const stopBackgroundMusic = async () => {
-    try {
-      if (sound.current) {
-        await sound.current.stopAsync()
-        await sound.current.unloadAsync()
-        sound.current = null
-      }
-    } catch (error) {
-      console.log("Audio cleanup error:", error)
-    }
-  }
-
-  const toggleMute = async () => {
-    try {
-      if (sound.current) {
-        if (isMuted) {
-          await sound.current.playAsync()
-        } else {
-          await sound.current.pauseAsync()
-        }
-      }
-      setIsMuted(!isMuted)
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-    } catch (error) {
-      console.log("Toggle mute error:", error)
-    }
-  }
-
   const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const offsetX = event.nativeEvent.contentOffset.x
     const slideIndex = Math.round(offsetX / SCREEN_WIDTH)
-    
+
     if (slideIndex !== previousSlideRef.current) {
       // Trigger haptic feedback on slide change
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-      
+
       // Trigger fade animation
       Animated.sequence([
         Animated.timing(fadeAnim, {
@@ -209,14 +150,14 @@ export const WrappedScreen: FC = function WrappedScreen() {
           useNativeDriver: true,
         }),
       ]).start()
-      
+
       previousSlideRef.current = slideIndex
       setCurrentSlide(slideIndex)
-      
+
       // Track slide viewed
       if (slides[slideIndex]) {
         WrappedEvents.slideViewed(slides[slideIndex].type, slideIndex)
-        
+
         // Track completion if reached the last slide
         if (slideIndex === slides.length - 1) {
           WrappedEvents.completed(slides.length)
@@ -234,7 +175,7 @@ export const WrappedScreen: FC = function WrappedScreen() {
     try {
       // Haptic feedback for button press
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-      
+
       if (!cardRef.current || !cardRef.current.capture) {
         Alert.alert("Error", "Unable to capture card. Please try again.")
         return
@@ -253,15 +194,15 @@ export const WrappedScreen: FC = function WrappedScreen() {
       }
 
       await Share.share(shareOptions)
-      
+
       // Track successful share
       WrappedEvents.shared()
     } catch (error) {
       console.error("Error sharing:", error)
       Alert.alert("Error", "Failed to share. Please try again.")
-      
+
       // Track share failure
-      WrappedEvents.shareFailed(error instanceof Error ? error.message : 'Unknown error')
+      WrappedEvents.shareFailed(error instanceof Error ? error.message : "Unknown error")
     }
   }
 
@@ -714,99 +655,105 @@ export const WrappedScreen: FC = function WrappedScreen() {
                   <View style={themed($summaryCardContainer)}>
                     <Card
                       style={themed($summaryCard)}
-                  ContentComponent={
-                    <View style={themed($summaryCardInner)}>
-                      {/* Title */}
-                      <Text style={themed($summaryCardTitle)} text="My 2025 APA Wrapped" />
+                      ContentComponent={
+                        <View style={themed($summaryCardInner)}>
+                          {/* Title */}
+                          <Text style={themed($summaryCardTitle)} text="My 2025 APA Wrapped" />
 
-                      {/* Stats Grid - 2 Columns */}
-                      {statsSlide && (
-                        <View style={themed($summaryGrid)}>
-                          <View style={themed($summaryGridItem)}>
-                            <View style={themed($summaryGridHeader)}>
-                              <Text style={themed($summaryGridEmoji)} text="📊" />
-                              <Text style={themed($summaryGridLabel)} text="Record" />
+                          {/* Stats Grid - 2 Columns */}
+                          {statsSlide && (
+                            <View style={themed($summaryGrid)}>
+                              <View style={themed($summaryGridItem)}>
+                                <View style={themed($summaryGridHeader)}>
+                                  <Text style={themed($summaryGridEmoji)} text="📊" />
+                                  <Text style={themed($summaryGridLabel)} text="Record" />
+                                </View>
+                                <Text
+                                  style={themed($summaryGridValue)}
+                                  text={`${statsSlide.wins}-${statsSlide.losses}`}
+                                />
+                              </View>
+                              <View style={themed($summaryGridItem)}>
+                                <View style={themed($summaryGridHeader)}>
+                                  <Text style={themed($summaryGridEmoji)} text="🔥" />
+                                  <Text style={themed($summaryGridLabel)} text="Best Streak" />
+                                </View>
+                                <Text
+                                  style={themed($summaryGridValue)}
+                                  text={`${statsSlide.longestWinStreak}`}
+                                />
+                              </View>
+                              <View style={themed($summaryGridItem)}>
+                                <View style={themed($summaryGridHeader)}>
+                                  <Text style={themed($summaryGridEmoji)} text="📈" />
+                                  <Text style={themed($summaryGridLabel)} text="Starting SL" />
+                                </View>
+                                <Text
+                                  style={themed($summaryGridValue)}
+                                  text={`${statsSlide.startingSkill}`}
+                                />
+                              </View>
+                              <View style={themed($summaryGridItem)}>
+                                <View style={themed($summaryGridHeader)}>
+                                  <Text style={themed($summaryGridEmoji)} text="🎯" />
+                                  <Text style={themed($summaryGridLabel)} text="Ending SL" />
+                                </View>
+                                <Text
+                                  style={themed($summaryGridValue)}
+                                  text={`${statsSlide.endingSkill}`}
+                                />
+                              </View>
                             </View>
-                            <Text
-                              style={themed($summaryGridValue)}
-                              text={`${statsSlide.wins}-${statsSlide.losses}`}
-                            />
-                          </View>
-                          <View style={themed($summaryGridItem)}>
-                            <View style={themed($summaryGridHeader)}>
-                              <Text style={themed($summaryGridEmoji)} text="🔥" />
-                              <Text style={themed($summaryGridLabel)} text="Best Streak" />
+                          )}
+
+                          {/* Top Archetype */}
+                          {topArchetype && (
+                            <View style={themed($summaryArchetypeSection)}>
+                              <View style={themed($summaryArchetypeHeader)}>
+                                <Text style={themed($summaryArchetypeEmoji)} text="🎭" />
+                                <Text
+                                  style={themed($summaryArchetypeTitle)}
+                                  text="Your Archetype"
+                                />
+                              </View>
+                              <Text
+                                style={themed($summaryArchetypeName)}
+                                text={topArchetype.name}
+                              />
+                              <Text
+                                style={themed($summaryArchetypeDesc)}
+                                text={topArchetype.explanation || topArchetype.description}
+                              />
                             </View>
-                            <Text
-                              style={themed($summaryGridValue)}
-                              text={`${statsSlide.longestWinStreak}`}
-                            />
-                          </View>
-                          <View style={themed($summaryGridItem)}>
-                            <View style={themed($summaryGridHeader)}>
-                              <Text style={themed($summaryGridEmoji)} text="📈" />
-                              <Text style={themed($summaryGridLabel)} text="Starting SL" />
+                          )}
+
+                          {/* Top Highlights */}
+                          {slide.top3Highlights && slide.top3Highlights.length > 0 && (
+                            <View style={themed($summaryHighlightsSection)}>
+                              <View style={themed($summaryHighlightsHeader)}>
+                                <Text style={themed($summaryHighlightsEmoji)} text="✨" />
+                                <Text style={themed($summaryHighlightsTitle)} text="Highlights" />
+                              </View>
+                              {slide.top3Highlights.map((highlight: string, i: number) => (
+                                <Text
+                                  key={i}
+                                  style={themed($summaryHighlight)}
+                                  text={`• ${highlight}`}
+                                />
+                              ))}
                             </View>
+                          )}
+
+                          {/* Footer */}
+                          <View style={themed($summaryFooter)}>
                             <Text
-                              style={themed($summaryGridValue)}
-                              text={`${statsSlide.startingSkill}`}
-                            />
-                          </View>
-                          <View style={themed($summaryGridItem)}>
-                            <View style={themed($summaryGridHeader)}>
-                              <Text style={themed($summaryGridEmoji)} text="🎯" />
-                              <Text style={themed($summaryGridLabel)} text="Ending SL" />
-                            </View>
-                            <Text
-                              style={themed($summaryGridValue)}
-                              text={`${statsSlide.endingSkill}`}
+                              style={themed($summaryFooterText)}
+                              text={`Get yours with the "On The Hill" app! 🎱`}
                             />
                           </View>
                         </View>
-                      )}
-
-                      {/* Top Archetype */}
-                      {topArchetype && (
-                        <View style={themed($summaryArchetypeSection)}>
-                          <View style={themed($summaryArchetypeHeader)}>
-                            <Text style={themed($summaryArchetypeEmoji)} text="🎭" />
-                            <Text style={themed($summaryArchetypeTitle)} text="Your Archetype" />
-                          </View>
-                          <Text style={themed($summaryArchetypeName)} text={topArchetype.name} />
-                          <Text
-                            style={themed($summaryArchetypeDesc)}
-                            text={topArchetype.explanation || topArchetype.description}
-                          />
-                        </View>
-                      )}
-
-                      {/* Top Highlights */}
-                      {slide.top3Highlights && slide.top3Highlights.length > 0 && (
-                        <View style={themed($summaryHighlightsSection)}>
-                          <View style={themed($summaryHighlightsHeader)}>
-                            <Text style={themed($summaryHighlightsEmoji)} text="✨" />
-                            <Text style={themed($summaryHighlightsTitle)} text="Highlights" />
-                          </View>
-                          {slide.top3Highlights.map((highlight: string, i: number) => (
-                            <Text
-                              key={i}
-                              style={themed($summaryHighlight)}
-                              text={`• ${highlight}`}
-                            />
-                          ))}
-                        </View>
-                      )}
-
-                      {/* Footer */}
-                      <View style={themed($summaryFooter)}>
-                        <Text
-                          style={themed($summaryFooterText)}
-                          text={`Get yours with the "On The Hill" app! 🎱`}
-                        />
-                      </View>
-                    </View>
-                  }
-                />
+                      }
+                    />
                   </View>
                 </ViewShot>
               </View>
@@ -831,11 +778,7 @@ export const WrappedScreen: FC = function WrappedScreen() {
         <SnowFall count={200} />
 
         {/* Mute button */}
-        <TouchableOpacity
-          style={themed($muteButton)}
-          onPress={toggleMute}
-          activeOpacity={0.7}
-        >
+        <TouchableOpacity style={themed($muteButton)} onPress={toggleMute} activeOpacity={0.7}>
           <MaterialCommunityIcons
             name={isMuted ? "volume-off" : "volume-high"}
             size={24}
@@ -862,11 +805,7 @@ export const WrappedScreen: FC = function WrappedScreen() {
         <SnowFall count={100} />
 
         {/* Mute button */}
-        <TouchableOpacity
-          style={themed($muteButton)}
-          onPress={toggleMute}
-          activeOpacity={0.7}
-        >
+        <TouchableOpacity style={themed($muteButton)} onPress={toggleMute} activeOpacity={0.7}>
           <MaterialCommunityIcons
             name={isMuted ? "volume-off" : "volume-high"}
             size={24}
@@ -892,10 +831,7 @@ export const WrappedScreen: FC = function WrappedScreen() {
         {slides.map((slide, index) => (
           <Animated.View
             key={index}
-            style={[
-              { width: SCREEN_WIDTH },
-              index === currentSlide && { opacity: fadeAnim },
-            ]}
+            style={[{ width: SCREEN_WIDTH }, index === currentSlide && { opacity: fadeAnim }]}
           >
             {renderSlide(slide, index)}
           </Animated.View>
@@ -936,11 +872,7 @@ export const WrappedScreen: FC = function WrappedScreen() {
       <SnowFall count={50} />
 
       {/* Mute button */}
-      <TouchableOpacity
-        style={themed($muteButton)}
-        onPress={toggleMute}
-        activeOpacity={0.7}
-      >
+      <TouchableOpacity style={themed($muteButton)} onPress={toggleMute} activeOpacity={0.7}>
         <MaterialCommunityIcons
           name={isMuted ? "volume-off" : "volume-high"}
           size={24}

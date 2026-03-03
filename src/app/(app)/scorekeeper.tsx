@@ -1,6 +1,5 @@
-import { FC, useState, useEffect, useCallback } from "react"
+import { FC, useState } from "react"
 import { TextStyle, View, ViewStyle, Alert, TouchableOpacity, ScrollView } from "react-native"
-import { useFocusEffect } from "@react-navigation/native"
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons"
 
 import { Button } from "@/components/Button"
@@ -8,38 +7,10 @@ import { Card } from "@/components/Card"
 import { Screen } from "@/components/Screen"
 import { Text } from "@/components/Text"
 import { TextField } from "@/components/TextField"
+import { useNineBallGame, getBallColor } from "@/hooks/useNineBallGame"
+import { useRecentMatches, type Match, type Player } from "@/hooks/useRecentMatches"
 import { useAppTheme } from "@/theme/context"
 import type { ThemedStyle } from "@/theme/types"
-import {
-  storeRecentMatches,
-  getStoredRecentMatches,
-  type StoredMatch,
-} from "@/utils/storage/scorekeeperStorage"
-
-interface Player {
-  id: string
-  name: string
-}
-
-interface Match {
-  id: string
-  gameType: "8ball" | "9ball"
-  player1: Player
-  player2: Player
-  player1GamesWon: number
-  player2GamesWon: number
-  player1GamesToWin: number
-  player2GamesToWin: number
-  currentGame: number
-  currentPlayer: Player
-  currentInning: number
-  createdAt: Date
-  isActive: boolean
-}
-
-interface NineBallState {
-  [key: number]: "onTable" | "pocketed" | "dead" | "alreadyPocketed" | "alreadyDead"
-}
 
 export const ScorekeeperScreen: FC = function ScorekeeperScreen() {
   const { themed } = useAppTheme()
@@ -49,68 +20,20 @@ export const ScorekeeperScreen: FC = function ScorekeeperScreen() {
   const [selectedGameType, setSelectedGameType] = useState<"8ball" | "9ball" | null>(null)
   const [players, setPlayers] = useState<Player[]>([])
   const [currentMatch, setCurrentMatch] = useState<Match | null>(null)
-  const [recentMatches, setRecentMatches] = useState<Match[]>([])
   const [player1Name, setPlayer1Name] = useState("")
   const [player2Name, setPlayer2Name] = useState("")
   const [player1GamesToWin, setPlayer1GamesToWin] = useState(2)
   const [player2GamesToWin, setPlayer2GamesToWin] = useState(2)
   const [player1PointsToWin, setPlayer1PointsToWin] = useState(25)
   const [player2PointsToWin, setPlayer2PointsToWin] = useState(25)
-  const [nineBallState, setNineBallState] = useState<NineBallState>({
-    0: "onTable",
-    1: "onTable",
-    2: "onTable",
-    3: "onTable",
-    4: "onTable",
-    5: "onTable",
-    6: "onTable",
-    7: "onTable",
-    8: "onTable",
-  })
-
-  // Load recent matches from storage on mount and when screen comes into focus
-  useEffect(() => {
-    const loadRecentMatches = async () => {
-      const storedMatches = getStoredRecentMatches()
-      if (storedMatches.length > 0) {
-        // Convert stored matches back to Match objects with Date objects
-        const matches: Match[] = storedMatches.map((stored) => ({
-          ...stored,
-          player1GamesToWin: (stored as any).player1GamesToWin || 5,
-          player2GamesToWin: (stored as any).player2GamesToWin || 5,
-          createdAt: new Date(stored.createdAt),
-        }))
-        setRecentMatches(matches)
-      } else {
-        setRecentMatches([])
-      }
-    }
-
-    loadRecentMatches()
-  }, [])
-
-  // Refresh recent matches when screen comes into focus
-  useFocusEffect(
-    useCallback(() => {
-      const loadRecentMatches = async () => {
-        const storedMatches = getStoredRecentMatches()
-        if (storedMatches.length > 0) {
-          // Convert stored matches back to Match objects with Date objects
-          const matches: Match[] = storedMatches.map((stored) => ({
-            ...stored,
-            player1GamesToWin: (stored as any).player1GamesToWin || 5,
-            player2GamesToWin: (stored as any).player2GamesToWin || 5,
-            createdAt: new Date(stored.createdAt),
-          }))
-          setRecentMatches(matches)
-        } else {
-          setRecentMatches([])
-        }
-      }
-
-      loadRecentMatches()
-    }, []),
-  )
+  const { recentMatches, saveMatch } = useRecentMatches()
+  const {
+    nineBallState,
+    handleBallPress,
+    endTurn: endNineBallTurn,
+    resetBalls,
+    isNineBallDead,
+  } = useNineBallGame()
 
   const addPlayer = (name: string): Player => {
     const newPlayer: Player = {
@@ -150,7 +73,7 @@ export const ScorekeeperScreen: FC = function ScorekeeperScreen() {
     if (!currentMatch) return
 
     // Check if 9 ball is marked as dead before ending turn
-    if (currentMatch.gameType === "9ball" && nineBallState[8] === "dead") {
+    if (currentMatch.gameType === "9ball" && isNineBallDead) {
       Alert.alert(
         "9 Ball Rule",
         "9 ball cannot be marked dead. It should be spotted if pocketed illegally.",
@@ -166,22 +89,8 @@ export const ScorekeeperScreen: FC = function ScorekeeperScreen() {
 
       // For 9 ball, handle scoring and ball state management
       if (prev.gameType === "9ball") {
-        // Calculate points for current player
-        let pointsEarned = 0
-        let nineBallPocketed = false
-
-        // Count pocketed balls and check for 9 ball
-        Object.entries(nineBallState).forEach(([ballIndex, state]) => {
-          if (state === "pocketed") {
-            const ballNum = parseInt(ballIndex) + 1
-            if (ballNum === 9) {
-              pointsEarned += 2 // 9 ball is worth 2 points
-              nineBallPocketed = true
-            } else {
-              pointsEarned += 1 // Other balls are worth 1 point
-            }
-          }
-        })
+        // Use the nine ball hook to calculate points and update ball states
+        const { points: pointsEarned, isNineBallPocketed: nineBallPocketed } = endNineBallTurn()
 
         // Update player scores
         const isPlayer1 = prev.currentPlayer.id === prev.player1.id
@@ -191,26 +100,6 @@ export const ScorekeeperScreen: FC = function ScorekeeperScreen() {
         const newPlayer2GamesWon = !isPlayer1
           ? prev.player2GamesWon + pointsEarned
           : prev.player2GamesWon
-
-        // Move pocketed and dead balls to already states
-        const newNineBallState = { ...nineBallState }
-        Object.keys(newNineBallState).forEach((ballIndex) => {
-          const state = newNineBallState[parseInt(ballIndex)]
-          if (state === "pocketed") {
-            newNineBallState[parseInt(ballIndex)] = "alreadyPocketed"
-          } else if (state === "dead") {
-            newNineBallState[parseInt(ballIndex)] = "alreadyDead"
-          }
-        })
-
-        // If 9 ball was pocketed, reset all balls to on table and keep same player's turn
-        if (nineBallPocketed) {
-          Object.keys(newNineBallState).forEach((ballIndex) => {
-            newNineBallState[parseInt(ballIndex)] = "onTable"
-          })
-        }
-
-        setNineBallState(newNineBallState)
 
         // Check if a player has won the match
         const player1WonMatch = newPlayer1GamesWon >= prev.player1GamesToWin
@@ -224,29 +113,11 @@ export const ScorekeeperScreen: FC = function ScorekeeperScreen() {
               text: "OK",
               onPress: () => {
                 const completedMatch = { ...prev, isActive: false }
-                const updatedMatches = [completedMatch, ...recentMatches.slice(0, 9)]
-                setRecentMatches(updatedMatches)
-
-                // Save to storage
-                const matchesToStore: StoredMatch[] = updatedMatches.map((match) => ({
-                  ...match,
-                  createdAt: match.createdAt.toISOString(),
-                }))
-                storeRecentMatches(matchesToStore)
+                saveMatch(completedMatch)
 
                 setCurrentMatch(null)
                 setCurrentView("start")
-                setNineBallState({
-                  0: "onTable",
-                  1: "onTable",
-                  2: "onTable",
-                  3: "onTable",
-                  4: "onTable",
-                  5: "onTable",
-                  6: "onTable",
-                  7: "onTable",
-                  8: "onTable",
-                })
+                resetBalls()
               },
             },
           ])
@@ -291,29 +162,11 @@ export const ScorekeeperScreen: FC = function ScorekeeperScreen() {
             text: "OK",
             onPress: () => {
               const completedMatch = { ...prev, isActive: false }
-              const updatedMatches = [completedMatch, ...recentMatches.slice(0, 9)]
-              setRecentMatches(updatedMatches)
-
-              // Save to storage
-              const matchesToStore: StoredMatch[] = updatedMatches.map((match) => ({
-                ...match,
-                createdAt: match.createdAt.toISOString(),
-              }))
-              storeRecentMatches(matchesToStore)
+              saveMatch(completedMatch)
 
               setCurrentMatch(null)
               setCurrentView("start")
-              setNineBallState({
-                0: "onTable",
-                1: "onTable",
-                2: "onTable",
-                3: "onTable",
-                4: "onTable",
-                5: "onTable",
-                6: "onTable",
-                7: "onTable",
-                8: "onTable",
-              })
+              resetBalls()
             },
           },
         ])
@@ -333,29 +186,11 @@ export const ScorekeeperScreen: FC = function ScorekeeperScreen() {
     if (!currentMatch) return
 
     const completedMatch = { ...currentMatch, isActive: false }
-    const updatedMatches = [completedMatch, ...recentMatches.slice(0, 9)] // Keep last 10 matches
-    setRecentMatches(updatedMatches)
-
-    // Save to storage
-    const matchesToStore: StoredMatch[] = updatedMatches.map((match) => ({
-      ...match,
-      createdAt: match.createdAt.toISOString(),
-    }))
-    storeRecentMatches(matchesToStore)
+    saveMatch(completedMatch)
 
     setCurrentMatch(null)
     setCurrentView("start")
-    setNineBallState({
-      0: "onTable",
-      1: "onTable",
-      2: "onTable",
-      3: "onTable",
-      4: "onTable",
-      5: "onTable",
-      6: "onTable",
-      7: "onTable",
-      8: "onTable",
-    })
+    resetBalls()
   }
 
   const cancelMatch = () => {
@@ -370,81 +205,11 @@ export const ScorekeeperScreen: FC = function ScorekeeperScreen() {
           onPress: () => {
             setCurrentMatch(null)
             setCurrentView("start")
-            setNineBallState({
-              0: "onTable",
-              1: "onTable",
-              2: "onTable",
-              3: "onTable",
-              4: "onTable",
-              5: "onTable",
-              6: "onTable",
-              7: "onTable",
-              8: "onTable",
-            })
+            resetBalls()
           },
         },
       ],
     )
-  }
-
-  const handleBallPress = (ballIndex: number) => {
-    if (!currentMatch || currentMatch.gameType !== "9ball") return
-
-    const currentState = nineBallState[ballIndex]
-    console.log(`Ball ${ballIndex + 1} pressed, current state: ${currentState}`)
-
-    // Don't allow changes for balls that are already pocketed or dead
-    if (currentState === "alreadyPocketed" || currentState === "alreadyDead") {
-      console.log(`Ball ${ballIndex + 1} is already ${currentState}, ignoring`)
-      return
-    }
-
-    // Cycle through states: onTable -> pocketed -> dead -> onTable
-    let newState: "onTable" | "pocketed" | "dead" | "alreadyPocketed" | "alreadyDead"
-
-    if (currentState === "onTable") {
-      newState = "pocketed"
-    } else if (currentState === "pocketed") {
-      newState = "dead"
-    } else if (currentState === "dead") {
-      newState = "onTable"
-    } else {
-      newState = "onTable"
-    }
-
-    console.log(`Ball ${ballIndex + 1} changing from ${currentState} to ${newState}`)
-
-    setNineBallState((prev) => ({
-      ...prev,
-      [ballIndex]: newState,
-    }))
-  }
-
-  const getBallColor = (state: string, ballIndex: number) => {
-    const colors = [
-      "#FFD700", // 1 - Yellow
-      "#0000FF", // 2 - Blue
-      "#FF0000", // 3 - Red
-      "#800080", // 4 - Purple
-      "#FFA500", // 5 - Orange
-      "#008000", // 6 - Green
-      "#8B4513", // 7 - Brown
-      "#000000", // 8 - Black
-      "#FFD700", // 9 - Yellow (same as 1)
-    ]
-
-    switch (state) {
-      case "pocketed":
-        return "#00F500"
-      case "dead":
-        return "#CCCCCC"
-      case "alreadyPocketed":
-        return "#D3FFD3"
-      case "alreadyDead":
-        return "#FFD3D3"
-      default:
-        return colors[ballIndex]
-    }
   }
 
   const handleQuickStart = (match: Match) => {
