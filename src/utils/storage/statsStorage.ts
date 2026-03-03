@@ -151,10 +151,10 @@ export const hasStatsData = (): boolean => {
   }
 }
 
-// Get cached report for a player/season combination
-export const getCachedReport = (memberId: string, season?: string): any | null => {
+// Get cached report for a player/gameType/season combination
+export const getCachedReport = (memberId: string, season?: string, gameType?: string): any | null => {
   try {
-    const cacheKey = `${STORAGE_KEYS.REPORT_CACHE_PREFIX}${memberId}_${season || "all"}`
+    const cacheKey = `${STORAGE_KEYS.REPORT_CACHE_PREFIX}${memberId}_${gameType || "all"}_${season || "all"}`
     const cachedData = statsStorage.getString(cacheKey)
     
     if (!cachedData) return null
@@ -177,9 +177,9 @@ export const getCachedReport = (memberId: string, season?: string): any | null =
 }
 
 // Store report in cache
-export const cacheReport = (memberId: string, season: string | undefined, data: any): void => {
+export const cacheReport = (memberId: string, season: string | undefined, data: any, gameType?: string): void => {
   try {
-    const cacheKey = `${STORAGE_KEYS.REPORT_CACHE_PREFIX}${memberId}_${season || "all"}`
+    const cacheKey = `${STORAGE_KEYS.REPORT_CACHE_PREFIX}${memberId}_${gameType || "all"}_${season || "all"}`
     const cached: CachedReport = {
       timestamp: Date.now(),
       data,

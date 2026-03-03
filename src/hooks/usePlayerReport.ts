@@ -31,6 +31,10 @@ function sortSeasons(seasons: string[]): string[] {
   })
 }
 
+function toApiGameType(gameType: "8ball" | "9ball"): "EIGHT_BALL" | "NINE_BALL" {
+  return gameType === "9ball" ? "NINE_BALL" : "EIGHT_BALL"
+}
+
 function reportToPlayerStats(name: string, reportResult: any): PlayerStats {
   return {
     name,
@@ -148,20 +152,32 @@ export function usePlayerReport() {
 
         const memberId = searchResult.player.memberNumber
         const seasonKey = selectedSeason !== "all" ? selectedSeason : undefined
+        const apiGameType = toApiGameType(gameType)
 
-        let reportResult = getCachedReport(memberId, seasonKey)
+        let reportResult = getCachedReport(memberId, seasonKey, apiGameType)
 
         if (!reportResult) {
           const seasonsFilter = seasonKey ? [seasonKey] : undefined
-          reportResult = await reportApi.get({ memberId, seasons: seasonsFilter })
+          reportResult = await reportApi.get({ memberId, seasons: seasonsFilter, gameType: apiGameType })
 
           if (reportResult && !reportResult.error && reportResult.report) {
-            cacheReport(memberId, seasonKey, reportResult)
+            cacheReport(memberId, seasonKey, reportResult, apiGameType)
           }
         }
 
         if (!reportResult || reportResult.error || !reportResult.report) {
           console.error("Failed to fetch season report:", reportResult?.error)
+          // Show empty stats when no data for this game type
+          const emptyStats = reportToPlayerStats(currentPlayer.name, {
+            report: {
+              overallWins: 0,
+              overallLosses: 0,
+            },
+          })
+          const updatedPlayers = [...players]
+          updatedPlayers[selectedPlayerIndex] = emptyStats
+          setPlayers(updatedPlayers)
+          setAvailableSeasons([])
           setIsLoading(false)
           return
         }
@@ -170,6 +186,10 @@ export function usePlayerReport() {
         const updatedPlayers = [...players]
         updatedPlayers[selectedPlayerIndex] = updatedPlayerStats
         setPlayers(updatedPlayers)
+
+        // Recalculate available seasons from the new data
+        const seasons = sortSeasons(Object.keys(updatedPlayerStats.bySeason || {}))
+        setAvailableSeasons(seasons)
       } catch (err) {
         console.error("Error fetching season report:", err)
       } finally {
@@ -179,7 +199,7 @@ export function usePlayerReport() {
 
     fetchSeasonReport()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSeason])
+  }, [selectedSeason, gameType])
 
   // Auto-search from route params
   useEffect(() => {
@@ -319,13 +339,15 @@ export function usePlayerReport() {
 
         clearPlayerCache(searchResult.player.memberNumber)
 
+        const apiGameType = toApiGameType(gameType)
         const reportResult = await reportApi.get({
           memberId: searchResult.player.memberNumber,
           seasons: undefined,
+          gameType: apiGameType,
         })
 
         if (reportResult && !reportResult.error && reportResult.report) {
-          cacheReport(searchResult.player.memberNumber, undefined, reportResult)
+          cacheReport(searchResult.player.memberNumber, undefined, reportResult, apiGameType)
         }
 
         if (!reportResult || reportResult.error || !reportResult.report) {
@@ -353,7 +375,7 @@ export function usePlayerReport() {
         setIsLoading(false)
       }
     },
-    [players],
+    [players, gameType],
   )
 
   const handleDeletePlayer = useCallback(
@@ -402,13 +424,15 @@ export function usePlayerReport() {
     try {
       const seasonsFilter = selectedSeason !== "all" ? [selectedSeason] : undefined
       const seasonKey = seasonsFilter?.[0]
+      const apiGameType = toApiGameType(gameType)
 
-      let reportResult = getCachedReport(playerSearchResult.player.memberNumber, seasonKey)
+      let reportResult = getCachedReport(playerSearchResult.player.memberNumber, seasonKey, apiGameType)
 
       if (!reportResult) {
         reportResult = await reportApi.get({
           memberId: playerSearchResult.player.memberNumber,
           seasons: seasonsFilter,
+          gameType: apiGameType,
         })
 
         if (!reportResult) {
@@ -426,7 +450,7 @@ export function usePlayerReport() {
           return
         }
 
-        cacheReport(playerSearchResult.player.memberNumber, seasonKey, reportResult)
+        cacheReport(playerSearchResult.player.memberNumber, seasonKey, reportResult, apiGameType)
       }
 
       if (!reportResult || reportResult.error || !reportResult.report) {
@@ -463,14 +487,11 @@ export function usePlayerReport() {
     } finally {
       setIsLoading(false)
     }
-  }, [playerSearchResult, userEmail, players, selectedSeason])
+  }, [playerSearchResult, userEmail, players, selectedSeason, gameType])
 
   const handleGameTypeSelect = useCallback((type: "8ball" | "9ball") => {
-    if (type === "9ball") {
-      Alert.alert("Coming Soon", "9 Ball stats coming soon!")
-      return
-    }
     setGameType(type)
+    setSelectedSeason("all")
   }, [])
 
   const handleSelectSeason = useCallback((season: string, resetSorts: () => void) => {

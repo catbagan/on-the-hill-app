@@ -101,6 +101,7 @@ export interface PlayerSearchResponse {
 export interface ReportGetRequest {
   memberId: string
   seasons?: string[]
+  gameType?: "EIGHT_BALL" | "NINE_BALL"
 }
 
 export interface ReportStats {
